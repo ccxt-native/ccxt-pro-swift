@@ -1346,7 +1346,7 @@ func sanitise(v interface{}) interface{} {
         return json.Marshal(sanitised)
     }
 
-    func (e *CCXTGoExchange) FetchOHLCV(symbol string, timeframe []byte, params []byte) ([]byte, error) {
+    func (e *CCXTGoExchange) FetchOHLCV(symbol string, timeframe string, params []byte) ([]byte, error) {
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
@@ -1406,7 +1406,7 @@ func sanitise(v interface{}) interface{} {
         return json.Marshal(sanitised)
     }
 
-    func (e *CCXTGoExchange) WatchOHLCV(symbol string, timeframe []byte, params []byte) ([]byte, error) {
+    func (e *CCXTGoExchange) WatchOHLCV(symbol string, timeframe string, params []byte) ([]byte, error) {
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
@@ -4411,7 +4411,7 @@ func sanitise(v interface{}) interface{} {
         return json.Marshal(sanitised)
     }
 
-    func (e *CCXTGoExchange) FetchMarkOHLCV(symbol string, timeframe []byte, params []byte) ([]byte, error) {
+    func (e *CCXTGoExchange) FetchMarkOHLCV(symbol string, timeframe string, params []byte) ([]byte, error) {
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
@@ -4441,7 +4441,7 @@ func sanitise(v interface{}) interface{} {
         return json.Marshal(sanitised)
     }
 
-    func (e *CCXTGoExchange) FetchIndexOHLCV(symbol string, timeframe []byte, params []byte) ([]byte, error) {
+    func (e *CCXTGoExchange) FetchIndexOHLCV(symbol string, timeframe string, params []byte) ([]byte, error) {
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
@@ -4471,7 +4471,7 @@ func sanitise(v interface{}) interface{} {
         return json.Marshal(sanitised)
     }
 
-    func (e *CCXTGoExchange) FetchPremiumIndexOHLCV(symbol string, timeframe []byte, params []byte) ([]byte, error) {
+    func (e *CCXTGoExchange) FetchPremiumIndexOHLCV(symbol string, timeframe string, params []byte) ([]byte, error) {
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err

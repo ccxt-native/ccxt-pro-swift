@@ -1514,7 +1514,7 @@ public class Exchange {
     }
 
 
-    public func fetchOHLCVWs (symbol: String, timeframe: Any = "1m", since: Int? = nil, limit: Int? = nil, params: [String: Any] = [:]) async throws -> [[Double]] {
+    public func fetchOHLCVWs (symbol: String, timeframe: String = "1m", since: Int? = nil, limit: Int? = nil, params: [String: Any] = [:]) async throws -> [[Double]] {
         try await withCheckedThrowingContinuation { continuation in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {

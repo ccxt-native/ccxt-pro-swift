@@ -1376,7 +1376,7 @@ func sanitise(v interface{}) interface{} {
         return json.Marshal(sanitised)
     }
 
-    func (e *CCXTGoExchange) FetchOHLCVWs(symbol string, timeframe []byte, params []byte) ([]byte, error) {
+    func (e *CCXTGoExchange) FetchOHLCVWs(symbol string, timeframe string, params []byte) ([]byte, error) {
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err

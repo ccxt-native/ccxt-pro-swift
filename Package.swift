@@ -17,8 +17,8 @@ let package = Package(
     targets: [
         .binaryTarget(
             name: "CCXTCore",
-            url: "https://github.com/ccxt-native/swift-pro/releases/download/vNaN.undefined.NaN/CCXTCore.xcframework.zip",
-            checksum: "3a1fa9dac34abc23e2911b4f65234b684282c766b5fa656da145c2d71d232ac9"
+            url: "https://github.com/ccxt-native/swift-pro/releases/download/v0.0.3/CCXTCore.xcframework.zip",
+            checksum: "49288c946979b1afb8f1d5b889b90f0c7c3de87edc689453cf0e730d3e2d4cc4"
         ),
         .target(
             name: "CCXT",

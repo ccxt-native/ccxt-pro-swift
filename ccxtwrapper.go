@@ -10,6 +10,7 @@ import (
 	"math"
 	"regexp"
 	"strings"
+	"sync"
 	   ccxt "github.com/ccxt/ccxt/go/v4"
     ccxtPro "github.com/ccxt/ccxt/go/v4/pro"
 )
@@ -18,6 +19,115 @@ type CCXTGoExchange struct {
 }
 
 func NewExchange(exchangeName string, configJson string) *CCXTGoExchange {
+	
+    wsMap := map[string]bool{
+        "alpaca": true,
+        "apex": true,
+        "ascendex": true,
+        "bequant": true,
+        "bigone": false,
+        "binance": true,
+        "binancecoinm": true,
+        "binanceus": true,
+        "binanceusdm": true,
+        "bingx": true,
+        "bit2c": false,
+        "bitbank": false,
+        "bitbns": false,
+        "bitfinex": true,
+        "bitflyer": false,
+        "bitget": true,
+        "bithumb": true,
+        "bitmart": true,
+        "bitmex": true,
+        "bitopro": true,
+        "bitrue": true,
+        "bitso": false,
+        "bitstamp": true,
+        "bitteam": false,
+        "bittrade": true,
+        "bitvavo": true,
+        "blockchaincom": true,
+        "blofin": true,
+        "btcalpha": false,
+        "btcbox": false,
+        "btcmarkets": false,
+        "btcturk": false,
+        "bybit": true,
+        "cex": true,
+        "coinbase": true,
+        "coinbaseadvanced": true,
+        "coinbaseexchange": true,
+        "coinbaseinternational": true,
+        "coincatch": true,
+        "coincheck": true,
+        "coinex": true,
+        "coinmate": false,
+        "coinmetro": false,
+        "coinone": true,
+        "coinsph": false,
+        "coinspot": false,
+        "cryptocom": true,
+        "cryptomus": false,
+        "defx": true,
+        "delta": false,
+        "deribit": true,
+        "derive": true,
+        "digifinex": false,
+        "exmo": true,
+        "fmfwio": false,
+        "foxbit": false,
+        "gate": true,
+        "gateio": true,
+        "gemini": true,
+        "hashkey": true,
+        "hibachi": false,
+        "hitbtc": true,
+        "hollaex": true,
+        "htx": true,
+        "huobi": true,
+        "hyperliquid": true,
+        "independentreserve": true,
+        "indodax": false,
+        "kraken": true,
+        "krakenfutures": true,
+        "kucoin": true,
+        "kucoinfutures": true,
+        "latoken": false,
+        "lbank": true,
+        "luno": true,
+        "mercado": false,
+        "mexc": true,
+        "modetrade": true,
+        "myokx": true,
+        "ndax": true,
+        "novadax": false,
+        "oceanex": false,
+        "okcoin": true,
+        "okx": true,
+        "okxus": true,
+        "onetrading": true,
+        "oxfun": true,
+        "p2b": true,
+        "paradex": true,
+        "paymium": false,
+        "phemex": true,
+        "poloniex": true,
+        "probit": true,
+        "timex": false,
+        "tokocrypto": false,
+        "tradeogre": true,
+        "upbit": true,
+        "wavesexchange": false,
+        "whitebit": true,
+        "woo": true,
+        "woofipro": true,
+        "xt": true,
+        "yobit": false,
+        "zaif": false,
+        "zonda": false,
+    }
+
 	// First, remove the outer quotes if they exist
 	configJson = strings.Trim(configJson, "\"")
 
@@ -32,7 +142,15 @@ func NewExchange(exchangeName string, configJson string) *CCXTGoExchange {
 		fmt.Printf("Go: Failed to parse configJson: %v\nInput was: %s\nProcessed to: %s\n", err, configJson, configJson)
 		return nil
 	}
-	var inst, ok = ccxtPro.DynamicallyCreateInstance(exchangeName, config)
+	
+    var inst ccxt.ICoreExchange
+	var ok bool
+	if wsMap[exchangeName] {
+		inst, ok = ccxtPro.DynamicallyCreateInstance(exchangeName, config)
+	} else {
+		inst, ok = ccxt.DynamicallyCreateInstance(exchangeName, config)
+	}
+
 	if !ok {
 		return nil
 	}
@@ -67,15 +185,17 @@ func sanitise(v interface{}) interface{} {
 		}
 		return x
 	case map[string]interface{}:
+		out := make(map[string]interface{}, len(x))
 		for k, vv := range x {
-			x[k] = sanitise(vv)
+			out[k] = sanitise(vv)
 		}
-		return x
+		return out
 	case []interface{}:
+		out := make([]interface{}, len(x))
 		for i, vv := range x {
-			x[i] = sanitise(vv)
+			out[i] = sanitise(vv)
 		}
-		return x
+		return out
 	default:
 		return v
 	}
@@ -124,67 +244,1194 @@ func sanitise(v interface{}) interface{} {
 // METHODS BELOW THIS LINE ARE TRANSPILED
 
 
+func (e *CCXTGoExchange) GetIsSandboxModeEnabled() ([]byte, error) {
+        propValue := e.exchange.GetIsSandboxModeEnabled()
+        sanitised := sanitise(propValue)
+        return json.Marshal(sanitised)
+    }
+
+func (e *CCXTGoExchange) SetIsSandboxModeEnabled(newValue bool) error {
+        
+        e.exchange.SetIsSandboxModeEnabled(newValue)
+        return nil
+    }
+
+
+func (e *CCXTGoExchange) GetApi() ([]byte, error) {
+        propValue := e.exchange.GetApi()
+        sanitised := sanitise(propValue)
+        return json.Marshal(sanitised)
+    }
+
+
+
+
+func (e *CCXTGoExchange) GetUserAgent() ([]byte, error) {
+        propValue := e.exchange.GetUserAgent()
+        sanitised := sanitise(propValue)
+        return json.Marshal(sanitised)
+    }
+
+func (e *CCXTGoExchange) SetUserAgent(newValue string) error {
+        
+        e.exchange.SetUserAgent(newValue)
+        return nil
+    }
+
+
+func (e *CCXTGoExchange) GetUserAgents() ([]byte, error) {
+        propValue := e.exchange.GetUserAgents()
+        sanitised := sanitise(propValue)
+        return json.Marshal(sanitised)
+    }
+
+func (e *CCXTGoExchange) SetUserAgents(newValue []byte) error {
+        
+        var decoded map[string]interface{}
+	    if err := json.Unmarshal(newValue, &decoded); err != nil {
+		    return err
+	    }
+        e.exchange.SetUserAgents(decoded)
+        return nil
+    }
+
+
+func (e *CCXTGoExchange) GetReturnResponseHeaders() ([]byte, error) {
+        propValue := e.exchange.GetReturnResponseHeaders()
+        sanitised := sanitise(propValue)
+        return json.Marshal(sanitised)
+    }
+
+func (e *CCXTGoExchange) SetReturnResponseHeaders(newValue bool) error {
+        
+        e.exchange.SetReturnResponseHeaders(newValue)
+        return nil
+    }
+
+
+func (e *CCXTGoExchange) GetMAX_VALUE() ([]byte, error) {
+        propValue := e.exchange.GetMAX_VALUE()
+        sanitised := sanitise(propValue)
+        return json.Marshal(sanitised)
+    }
+
+func (e *CCXTGoExchange) SetMAX_VALUE(newValue float64) error {
+        
+        e.exchange.SetMAX_VALUE(newValue)
+        return nil
+    }
+
+
+func (e *CCXTGoExchange) GetSubstituteCommonCurrencyCodes() ([]byte, error) {
+        propValue := e.exchange.GetSubstituteCommonCurrencyCodes()
+        sanitised := sanitise(propValue)
+        return json.Marshal(sanitised)
+    }
+
+func (e *CCXTGoExchange) SetSubstituteCommonCurrencyCodes(newValue bool) error {
+        
+        e.exchange.SetSubstituteCommonCurrencyCodes(newValue)
+        return nil
+    }
+
+
+func (e *CCXTGoExchange) GetReduceFees() ([]byte, error) {
+        propValue := e.exchange.GetReduceFees()
+        sanitised := sanitise(propValue)
+        return json.Marshal(sanitised)
+    }
+
+func (e *CCXTGoExchange) SetReduceFees(newValue bool) error {
+        
+        e.exchange.SetReduceFees(newValue)
+        return nil
+    }
+
+
+
+
+func (e *CCXTGoExchange) SetTimeout(newValue int64) error {
+        
+        e.exchange.SetTimeout(newValue)
+        return nil
+    }
+
+
+
+
+func (e *CCXTGoExchange) SetVerbose(newValue bool) error {
+        
+        e.exchange.SetVerbose(newValue)
+        return nil
+    }
+
+
+
+
+func (e *CCXTGoExchange) SetTwofa(newValue string) error {
+        
+        e.exchange.SetTwofa(newValue)
+        return nil
+    }
+
+
+func (e *CCXTGoExchange) GetBalance() ([]byte, error) {
+        propValue := e.exchange.GetBalance()
+        sanitised := sanitise(propValue)
+        return json.Marshal(sanitised)
+    }
+
+func (e *CCXTGoExchange) SetBalance(newValue []byte) error {
+        
+        var decoded interface{}
+	    if err := json.Unmarshal(newValue, &decoded); err != nil {
+		    return err
+	    }
+        e.exchange.SetBalance(decoded)
+        return nil
+    }
+
+
+func (e *CCXTGoExchange) GetLiquidations() ([]byte, error) {
+        propValue := e.exchange.GetLiquidations()
+        sanitised := sanitise(propValue)
+        return json.Marshal(sanitised)
+    }
+
+func (e *CCXTGoExchange) SetLiquidations(newValue []byte) error {
+        
+        var decoded *sync.Map
+	    if err := json.Unmarshal(newValue, &decoded); err != nil {
+		    return err
+	    }
+        e.exchange.SetLiquidations(decoded)
+        return nil
+    }
+
+
+func (e *CCXTGoExchange) GetOrderbooks() ([]byte, error) {
+        propValue := e.exchange.GetOrderbooks()
+        sanitised := sanitise(propValue)
+        return json.Marshal(sanitised)
+    }
+
+func (e *CCXTGoExchange) SetOrderbooks(newValue []byte) error {
+        
+        var decoded *sync.Map
+	    if err := json.Unmarshal(newValue, &decoded); err != nil {
+		    return err
+	    }
+        e.exchange.SetOrderbooks(decoded)
+        return nil
+    }
+
+
+func (e *CCXTGoExchange) GetTickers() ([]byte, error) {
+        propValue := e.exchange.GetTickers()
+        sanitised := sanitise(propValue)
+        return json.Marshal(sanitised)
+    }
+
+func (e *CCXTGoExchange) SetTickers(newValue []byte) error {
+        
+        var decoded *sync.Map
+	    if err := json.Unmarshal(newValue, &decoded); err != nil {
+		    return err
+	    }
+        e.exchange.SetTickers(decoded)
+        return nil
+    }
+
+
+func (e *CCXTGoExchange) GetFundingRates() ([]byte, error) {
+        propValue := e.exchange.GetFundingRates()
+        sanitised := sanitise(propValue)
+        return json.Marshal(sanitised)
+    }
+
+func (e *CCXTGoExchange) SetFundingRates(newValue []byte) error {
+        
+        var decoded interface{}
+	    if err := json.Unmarshal(newValue, &decoded); err != nil {
+		    return err
+	    }
+        e.exchange.SetFundingRates(decoded)
+        return nil
+    }
+
+
+func (e *CCXTGoExchange) GetBidsasks() ([]byte, error) {
+        propValue := e.exchange.GetBidsasks()
+        sanitised := sanitise(propValue)
+        return json.Marshal(sanitised)
+    }
+
+func (e *CCXTGoExchange) SetBidsasks(newValue []byte) error {
+        
+        var decoded *sync.Map
+	    if err := json.Unmarshal(newValue, &decoded); err != nil {
+		    return err
+	    }
+        e.exchange.SetBidsasks(decoded)
+        return nil
+    }
+
+
+func (e *CCXTGoExchange) GetOrders() ([]byte, error) {
+        propValue := e.exchange.GetOrders()
+        sanitised := sanitise(propValue)
+        return json.Marshal(sanitised)
+    }
+
+func (e *CCXTGoExchange) SetOrders(newValue []byte) error {
+        
+        var decoded interface{}
+	    if err := json.Unmarshal(newValue, &decoded); err != nil {
+		    return err
+	    }
+        e.exchange.SetOrders(decoded)
+        return nil
+    }
+
+
+func (e *CCXTGoExchange) GetTriggerOrders() ([]byte, error) {
+        propValue := e.exchange.GetTriggerOrders()
+        sanitised := sanitise(propValue)
+        return json.Marshal(sanitised)
+    }
+
+func (e *CCXTGoExchange) SetTriggerOrders(newValue []byte) error {
+        
+        var decoded interface{}
+	    if err := json.Unmarshal(newValue, &decoded); err != nil {
+		    return err
+	    }
+        e.exchange.SetTriggerOrders(decoded)
+        return nil
+    }
+
+
+func (e *CCXTGoExchange) GetTransactions() ([]byte, error) {
+        propValue := e.exchange.GetTransactions()
+        sanitised := sanitise(propValue)
+        return json.Marshal(sanitised)
+    }
+
+func (e *CCXTGoExchange) SetTransactions(newValue []byte) error {
+        
+        var decoded *sync.Map
+	    if err := json.Unmarshal(newValue, &decoded); err != nil {
+		    return err
+	    }
+        e.exchange.SetTransactions(decoded)
+        return nil
+    }
+
+
+func (e *CCXTGoExchange) GetMyLiquidations() ([]byte, error) {
+        propValue := e.exchange.GetMyLiquidations()
+        sanitised := sanitise(propValue)
+        return json.Marshal(sanitised)
+    }
+
+func (e *CCXTGoExchange) SetMyLiquidations(newValue []byte) error {
+        
+        var decoded *sync.Map
+	    if err := json.Unmarshal(newValue, &decoded); err != nil {
+		    return err
+	    }
+        e.exchange.SetMyLiquidations(decoded)
+        return nil
+    }
+
+
+func (e *CCXTGoExchange) GetPrecision() ([]byte, error) {
+        propValue := e.exchange.GetPrecision()
+        sanitised := sanitise(propValue)
+        return json.Marshal(sanitised)
+    }
+
+func (e *CCXTGoExchange) SetPrecision(newValue []byte) error {
+        
+        var decoded map[string]interface{}
+	    if err := json.Unmarshal(newValue, &decoded); err != nil {
+		    return err
+	    }
+        e.exchange.SetPrecision(decoded)
+        return nil
+    }
+
+
+func (e *CCXTGoExchange) GetLast_http_response() ([]byte, error) {
+        propValue := e.exchange.GetLast_http_response()
+        sanitised := sanitise(propValue)
+        return json.Marshal(sanitised)
+    }
+
+func (e *CCXTGoExchange) SetLast_http_response(newValue []byte) error {
+        
+        var decoded interface{}
+	    if err := json.Unmarshal(newValue, &decoded); err != nil {
+		    return err
+	    }
+        e.exchange.SetLast_http_response(decoded)
+        return nil
+    }
+
+
+func (e *CCXTGoExchange) GetLast_request_headers() ([]byte, error) {
+        propValue := e.exchange.GetLast_request_headers()
+        sanitised := sanitise(propValue)
+        return json.Marshal(sanitised)
+    }
+
+
+
+
+func (e *CCXTGoExchange) GetLast_request_body() ([]byte, error) {
+        propValue := e.exchange.GetLast_request_body()
+        sanitised := sanitise(propValue)
+        return json.Marshal(sanitised)
+    }
+
+
+
+
+func (e *CCXTGoExchange) GetLast_request_url() ([]byte, error) {
+        propValue := e.exchange.GetLast_request_url()
+        sanitised := sanitise(propValue)
+        return json.Marshal(sanitised)
+    }
+
+
+
+
+func (e *CCXTGoExchange) GetLastRequestBody() ([]byte, error) {
+        propValue := e.exchange.GetLastRequestBody()
+        sanitised := sanitise(propValue)
+        return json.Marshal(sanitised)
+    }
+
+func (e *CCXTGoExchange) SetLastRequestBody(newValue []byte) error {
+        
+        var decoded interface{}
+	    if err := json.Unmarshal(newValue, &decoded); err != nil {
+		    return err
+	    }
+        e.exchange.SetLastRequestBody(decoded)
+        return nil
+    }
+
+
+func (e *CCXTGoExchange) GetLastRequestUrl() ([]byte, error) {
+        propValue := e.exchange.GetLastRequestUrl()
+        sanitised := sanitise(propValue)
+        return json.Marshal(sanitised)
+    }
+
+func (e *CCXTGoExchange) SetLastRequestUrl(newValue string) error {
+        
+        e.exchange.SetLastRequestUrl(newValue)
+        return nil
+    }
+
+
+func (e *CCXTGoExchange) GetId() ([]byte, error) {
+        propValue := e.exchange.GetId()
+        sanitised := sanitise(propValue)
+        return json.Marshal(sanitised)
+    }
+
+
+
+
+func (e *CCXTGoExchange) GetMarkets() ([]byte, error) {
+        propValue := e.exchange.GetMarkets()
+        sanitised := sanitise(propValue)
+        return json.Marshal(sanitised)
+    }
+
+
+
+
+func (e *CCXTGoExchange) GetFeatures() ([]byte, error) {
+        propValue := e.exchange.GetFeatures()
+        sanitised := sanitise(propValue)
+        return json.Marshal(sanitised)
+    }
+
+
+
+
+func (e *CCXTGoExchange) GetRateLimit() ([]byte, error) {
+        propValue := e.exchange.GetRateLimit()
+        sanitised := sanitise(propValue)
+        return json.Marshal(sanitised)
+    }
+
+func (e *CCXTGoExchange) SetRateLimit(newValue float64) error {
+        
+        e.exchange.SetRateLimit(newValue)
+        return nil
+    }
+
+
+func (e *CCXTGoExchange) GetTokenBucket() ([]byte, error) {
+        propValue := e.exchange.GetTokenBucket()
+        sanitised := sanitise(propValue)
+        return json.Marshal(sanitised)
+    }
+
+func (e *CCXTGoExchange) SetTokenBucket(newValue []byte) error {
+        
+        var decoded map[string]interface{}
+	    if err := json.Unmarshal(newValue, &decoded); err != nil {
+		    return err
+	    }
+        e.exchange.SetTokenBucket(decoded)
+        return nil
+    }
+
+
+func (e *CCXTGoExchange) GetThrottler() ([]byte, error) {
+        propValue := e.exchange.GetThrottler()
+        sanitised := sanitise(propValue)
+        return json.Marshal(sanitised)
+    }
+
+func (e *CCXTGoExchange) SetThrottler(newValue []byte) error {
+        
+        var decoded *ccxt.Throttler
+	    if err := json.Unmarshal(newValue, &decoded); err != nil {
+		    return err
+	    }
+        e.exchange.SetThrottler(decoded)
+        return nil
+    }
+
+
+
+
+func (e *CCXTGoExchange) SetEnableRateLimit(newValue bool) error {
+        
+        e.exchange.SetEnableRateLimit(newValue)
+        return nil
+    }
+
+
+func (e *CCXTGoExchange) GetHttpExceptions() ([]byte, error) {
+        propValue := e.exchange.GetHttpExceptions()
+        sanitised := sanitise(propValue)
+        return json.Marshal(sanitised)
+    }
+
+func (e *CCXTGoExchange) SetHttpExceptions(newValue []byte) error {
+        
+        var decoded map[string]interface{}
+	    if err := json.Unmarshal(newValue, &decoded); err != nil {
+		    return err
+	    }
+        e.exchange.SetHttpExceptions(decoded)
+        return nil
+    }
+
+
+func (e *CCXTGoExchange) GetLimits() ([]byte, error) {
+        propValue := e.exchange.GetLimits()
+        sanitised := sanitise(propValue)
+        return json.Marshal(sanitised)
+    }
+
+func (e *CCXTGoExchange) SetLimits(newValue []byte) error {
+        
+        var decoded map[string]interface{}
+	    if err := json.Unmarshal(newValue, &decoded); err != nil {
+		    return err
+	    }
+        e.exchange.SetLimits(decoded)
+        return nil
+    }
+
+
+func (e *CCXTGoExchange) GetMarkets_by_id() ([]byte, error) {
+        propValue := e.exchange.GetMarkets_by_id()
+        sanitised := sanitise(propValue)
+        return json.Marshal(sanitised)
+    }
+
+func (e *CCXTGoExchange) SetMarkets_by_id(newValue []byte) error {
+        
+        var decoded *sync.Map
+	    if err := json.Unmarshal(newValue, &decoded); err != nil {
+		    return err
+	    }
+        e.exchange.SetMarkets_by_id(decoded)
+        return nil
+    }
+
+
+func (e *CCXTGoExchange) GetSymbols() ([]byte, error) {
+        propValue := e.exchange.GetSymbols()
+        sanitised := sanitise(propValue)
+        return json.Marshal(sanitised)
+    }
+
+
+
+
+func (e *CCXTGoExchange) GetIds() ([]byte, error) {
+        propValue := e.exchange.GetIds()
+        sanitised := sanitise(propValue)
+        return json.Marshal(sanitised)
+    }
+
+func (e *CCXTGoExchange) SetIds(newValue []byte) error {
+        
+        var decoded []string
+	    if err := json.Unmarshal(newValue, &decoded); err != nil {
+		    return err
+	    }
+        e.exchange.SetIds(decoded)
+        return nil
+    }
+
+
+func (e *CCXTGoExchange) GetCurrencies() ([]byte, error) {
+        propValue := e.exchange.GetCurrencies()
+        sanitised := sanitise(propValue)
+        return json.Marshal(sanitised)
+    }
+
+func (e *CCXTGoExchange) SetCurrencies(newValue []byte) error {
+        
+        var decoded ccxt.Currencies
+	    if err := json.Unmarshal(newValue, &decoded); err != nil {
+		    return err
+	    }
+        e.exchange.SetCurrencies(decoded)
+        return nil
+    }
+
+
+func (e *CCXTGoExchange) GetBaseCurrencies() ([]byte, error) {
+        propValue := e.exchange.GetBaseCurrencies()
+        sanitised := sanitise(propValue)
+        return json.Marshal(sanitised)
+    }
+
+func (e *CCXTGoExchange) SetBaseCurrencies(newValue []byte) error {
+        
+        var decoded *sync.Map
+	    if err := json.Unmarshal(newValue, &decoded); err != nil {
+		    return err
+	    }
+        e.exchange.SetBaseCurrencies(decoded)
+        return nil
+    }
+
+
+func (e *CCXTGoExchange) GetQuoteCurrencies() ([]byte, error) {
+        propValue := e.exchange.GetQuoteCurrencies()
+        sanitised := sanitise(propValue)
+        return json.Marshal(sanitised)
+    }
+
+func (e *CCXTGoExchange) SetQuoteCurrencies(newValue []byte) error {
+        
+        var decoded *sync.Map
+	    if err := json.Unmarshal(newValue, &decoded); err != nil {
+		    return err
+	    }
+        e.exchange.SetQuoteCurrencies(decoded)
+        return nil
+    }
+
+
+func (e *CCXTGoExchange) GetCurrencies_by_id() ([]byte, error) {
+        propValue := e.exchange.GetCurrencies_by_id()
+        sanitised := sanitise(propValue)
+        return json.Marshal(sanitised)
+    }
+
+func (e *CCXTGoExchange) SetCurrencies_by_id(newValue []byte) error {
+        
+        var decoded *sync.Map
+	    if err := json.Unmarshal(newValue, &decoded); err != nil {
+		    return err
+	    }
+        e.exchange.SetCurrencies_by_id(decoded)
+        return nil
+    }
+
+
+func (e *CCXTGoExchange) GetCodes() ([]byte, error) {
+        propValue := e.exchange.GetCodes()
+        sanitised := sanitise(propValue)
+        return json.Marshal(sanitised)
+    }
+
+func (e *CCXTGoExchange) SetCodes(newValue []byte) error {
+        
+        var decoded []string
+	    if err := json.Unmarshal(newValue, &decoded); err != nil {
+		    return err
+	    }
+        e.exchange.SetCodes(decoded)
+        return nil
+    }
+
+
+
+
+func (e *CCXTGoExchange) SetAccounts(newValue []byte) error {
+        
+        var decoded []ccxt.Account
+	    if err := json.Unmarshal(newValue, &decoded); err != nil {
+		    return err
+	    }
+        e.exchange.SetAccounts(decoded)
+        return nil
+    }
+
+
+func (e *CCXTGoExchange) GetAccountsById() ([]byte, error) {
+        propValue := e.exchange.GetAccountsById()
+        sanitised := sanitise(propValue)
+        return json.Marshal(sanitised)
+    }
+
+func (e *CCXTGoExchange) SetAccountsById(newValue []byte) error {
+        
+        var decoded interface{}
+	    if err := json.Unmarshal(newValue, &decoded); err != nil {
+		    return err
+	    }
+        e.exchange.SetAccountsById(decoded)
+        return nil
+    }
+
+
+func (e *CCXTGoExchange) GetCommonCurrencies() ([]byte, error) {
+        propValue := e.exchange.GetCommonCurrencies()
+        sanitised := sanitise(propValue)
+        return json.Marshal(sanitised)
+    }
+
+func (e *CCXTGoExchange) SetCommonCurrencies(newValue []byte) error {
+        
+        var decoded map[string]interface{}
+	    if err := json.Unmarshal(newValue, &decoded); err != nil {
+		    return err
+	    }
+        e.exchange.SetCommonCurrencies(decoded)
+        return nil
+    }
+
+
+func (e *CCXTGoExchange) GetHostname() ([]byte, error) {
+        propValue := e.exchange.GetHostname()
+        sanitised := sanitise(propValue)
+        return json.Marshal(sanitised)
+    }
+
+
+
+
+func (e *CCXTGoExchange) GetExceptions() ([]byte, error) {
+        propValue := e.exchange.GetExceptions()
+        sanitised := sanitise(propValue)
+        return json.Marshal(sanitised)
+    }
+
+func (e *CCXTGoExchange) SetExceptions(newValue []byte) error {
+        
+        var decoded map[string]interface{}
+	    if err := json.Unmarshal(newValue, &decoded); err != nil {
+		    return err
+	    }
+        e.exchange.SetExceptions(decoded)
+        return nil
+    }
+
+
+func (e *CCXTGoExchange) GetTimeframes() ([]byte, error) {
+        propValue := e.exchange.GetTimeframes()
+        sanitised := sanitise(propValue)
+        return json.Marshal(sanitised)
+    }
+
+
+
+
+func (e *CCXTGoExchange) GetVersion() ([]byte, error) {
+        propValue := e.exchange.GetVersion()
+        sanitised := sanitise(propValue)
+        return json.Marshal(sanitised)
+    }
+
+
+
+
+func (e *CCXTGoExchange) GetName() ([]byte, error) {
+        propValue := e.exchange.GetName()
+        sanitised := sanitise(propValue)
+        return json.Marshal(sanitised)
+    }
+
+func (e *CCXTGoExchange) SetName(newValue string) error {
+        
+        e.exchange.SetName(newValue)
+        return nil
+    }
+
+
+func (e *CCXTGoExchange) GetHttpProxyAgentModule() ([]byte, error) {
+        propValue := e.exchange.GetHttpProxyAgentModule()
+        sanitised := sanitise(propValue)
+        return json.Marshal(sanitised)
+    }
+
+func (e *CCXTGoExchange) SetHttpProxyAgentModule(newValue []byte) error {
+        
+        var decoded interface{}
+	    if err := json.Unmarshal(newValue, &decoded); err != nil {
+		    return err
+	    }
+        e.exchange.SetHttpProxyAgentModule(decoded)
+        return nil
+    }
+
+
+func (e *CCXTGoExchange) GetHttpsProxyAgentModule() ([]byte, error) {
+        propValue := e.exchange.GetHttpsProxyAgentModule()
+        sanitised := sanitise(propValue)
+        return json.Marshal(sanitised)
+    }
+
+func (e *CCXTGoExchange) SetHttpsProxyAgentModule(newValue []byte) error {
+        
+        var decoded interface{}
+	    if err := json.Unmarshal(newValue, &decoded); err != nil {
+		    return err
+	    }
+        e.exchange.SetHttpsProxyAgentModule(decoded)
+        return nil
+    }
+
+
+func (e *CCXTGoExchange) GetSocksProxyAgentModule() ([]byte, error) {
+        propValue := e.exchange.GetSocksProxyAgentModule()
+        sanitised := sanitise(propValue)
+        return json.Marshal(sanitised)
+    }
+
+func (e *CCXTGoExchange) SetSocksProxyAgentModule(newValue []byte) error {
+        
+        var decoded interface{}
+	    if err := json.Unmarshal(newValue, &decoded); err != nil {
+		    return err
+	    }
+        e.exchange.SetSocksProxyAgentModule(decoded)
+        return nil
+    }
+
+
+func (e *CCXTGoExchange) GetSocksProxyAgentModuleChecked() ([]byte, error) {
+        propValue := e.exchange.GetSocksProxyAgentModuleChecked()
+        sanitised := sanitise(propValue)
+        return json.Marshal(sanitised)
+    }
+
+func (e *CCXTGoExchange) SetSocksProxyAgentModuleChecked(newValue bool) error {
+        
+        e.exchange.SetSocksProxyAgentModuleChecked(newValue)
+        return nil
+    }
+
+
+func (e *CCXTGoExchange) GetProxyDictionaries() ([]byte, error) {
+        propValue := e.exchange.GetProxyDictionaries()
+        sanitised := sanitise(propValue)
+        return json.Marshal(sanitised)
+    }
+
+func (e *CCXTGoExchange) SetProxyDictionaries(newValue []byte) error {
+        
+        var decoded map[string]interface{}
+	    if err := json.Unmarshal(newValue, &decoded); err != nil {
+		    return err
+	    }
+        e.exchange.SetProxyDictionaries(decoded)
+        return nil
+    }
+
+
+func (e *CCXTGoExchange) GetAlias() ([]byte, error) {
+        propValue := e.exchange.GetAlias()
+        sanitised := sanitise(propValue)
+        return json.Marshal(sanitised)
+    }
+
+
+
+
+func (e *CCXTGoExchange) GetClients() ([]byte, error) {
+        propValue := e.exchange.GetClients()
+        sanitised := sanitise(propValue)
+        return json.Marshal(sanitised)
+    }
+
+func (e *CCXTGoExchange) SetClients(newValue []byte) error {
+        
+        var decoded map[string]interface{}
+	    if err := json.Unmarshal(newValue, &decoded); err != nil {
+		    return err
+	    }
+        e.exchange.SetClients(decoded)
+        return nil
+    }
+
+
+func (e *CCXTGoExchange) GetNewUpdates() ([]byte, error) {
+        propValue := e.exchange.GetNewUpdates()
+        sanitised := sanitise(propValue)
+        return json.Marshal(sanitised)
+    }
+
+func (e *CCXTGoExchange) SetNewUpdates(newValue bool) error {
+        
+        e.exchange.SetNewUpdates(newValue)
+        return nil
+    }
+
+
+func (e *CCXTGoExchange) GetOptions() ([]byte, error) {
+        propValue := e.exchange.GetOptions()
+        sanitised := sanitise(propValue)
+        return json.Marshal(sanitised)
+    }
+
+func (e *CCXTGoExchange) SetOptions(newValue []byte) error {
+        
+        var decoded map[string]interface{}
+	    if err := json.Unmarshal(newValue, &decoded); err != nil {
+		    return err
+	    }
+        e.exchange.SetOptions(decoded)
+        return nil
+    }
+
+
+
+
+func (e *CCXTGoExchange) SetApiKey(newValue string) error {
+        
+        e.exchange.SetApiKey(newValue)
+        return nil
+    }
+
+
+
+
+func (e *CCXTGoExchange) SetSecret(newValue string) error {
+        
+        e.exchange.SetSecret(newValue)
+        return nil
+    }
+
+
+
+
+func (e *CCXTGoExchange) SetUid(newValue string) error {
+        
+        e.exchange.SetUid(newValue)
+        return nil
+    }
+
+
+func (e *CCXTGoExchange) GetLogin() ([]byte, error) {
+        propValue := e.exchange.GetLogin()
+        sanitised := sanitise(propValue)
+        return json.Marshal(sanitised)
+    }
+
+func (e *CCXTGoExchange) SetLogin(newValue string) error {
+        
+        e.exchange.SetLogin(newValue)
+        return nil
+    }
+
+
+
+
+func (e *CCXTGoExchange) SetPassword(newValue string) error {
+        
+        e.exchange.SetPassword(newValue)
+        return nil
+    }
+
+
+
+
+func (e *CCXTGoExchange) SetPrivateKey(newValue string) error {
+        
+        e.exchange.SetPrivateKey(newValue)
+        return nil
+    }
+
+
+
+
+func (e *CCXTGoExchange) SetWalletAddress(newValue string) error {
+        
+        e.exchange.SetWalletAddress(newValue)
+        return nil
+    }
+
+
+func (e *CCXTGoExchange) GetToken() ([]byte, error) {
+        propValue := e.exchange.GetToken()
+        sanitised := sanitise(propValue)
+        return json.Marshal(sanitised)
+    }
+
+func (e *CCXTGoExchange) SetToken(newValue string) error {
+        
+        e.exchange.SetToken(newValue)
+        return nil
+    }
+
+
+func (e *CCXTGoExchange) GetTrades() ([]byte, error) {
+        propValue := e.exchange.GetTrades()
+        sanitised := sanitise(propValue)
+        return json.Marshal(sanitised)
+    }
+
+func (e *CCXTGoExchange) SetTrades(newValue []byte) error {
+        
+        var decoded interface{}
+	    if err := json.Unmarshal(newValue, &decoded); err != nil {
+		    return err
+	    }
+        e.exchange.SetTrades(decoded)
+        return nil
+    }
+
+
+func (e *CCXTGoExchange) GetOhlcvs() ([]byte, error) {
+        propValue := e.exchange.GetOhlcvs()
+        sanitised := sanitise(propValue)
+        return json.Marshal(sanitised)
+    }
+
+func (e *CCXTGoExchange) SetOhlcvs(newValue []byte) error {
+        
+        var decoded interface{}
+	    if err := json.Unmarshal(newValue, &decoded); err != nil {
+		    return err
+	    }
+        e.exchange.SetOhlcvs(decoded)
+        return nil
+    }
+
+
+func (e *CCXTGoExchange) GetMyTrades() ([]byte, error) {
+        propValue := e.exchange.GetMyTrades()
+        sanitised := sanitise(propValue)
+        return json.Marshal(sanitised)
+    }
+
+func (e *CCXTGoExchange) SetMyTrades(newValue []byte) error {
+        
+        var decoded interface{}
+	    if err := json.Unmarshal(newValue, &decoded); err != nil {
+		    return err
+	    }
+        e.exchange.SetMyTrades(decoded)
+        return nil
+    }
+
+
+func (e *CCXTGoExchange) GetPositions() ([]byte, error) {
+        propValue := e.exchange.GetPositions()
+        sanitised := sanitise(propValue)
+        return json.Marshal(sanitised)
+    }
+
+func (e *CCXTGoExchange) SetPositions(newValue []byte) error {
+        
+        var decoded interface{}
+	    if err := json.Unmarshal(newValue, &decoded); err != nil {
+		    return err
+	    }
+        e.exchange.SetPositions(decoded)
+        return nil
+    }
+
+
+func (e *CCXTGoExchange) GetHas() ([]byte, error) {
+        propValue := e.exchange.GetHas()
+        sanitised := sanitise(propValue)
+        return json.Marshal(sanitised)
+    }
+
+
+
+
+func (e *CCXTGoExchange) GetUrls() ([]byte, error) {
+        propValue := e.exchange.GetUrls()
+        sanitised := sanitise(propValue)
+        return json.Marshal(sanitised)
+    }
+
+
+
+
+func (e *CCXTGoExchange) GetRequiredCredentials() ([]byte, error) {
+        propValue := e.exchange.GetRequiredCredentials()
+        sanitised := sanitise(propValue)
+        return json.Marshal(sanitised)
+    }
+
+
+
+
+func (e *CCXTGoExchange) GetFees() ([]byte, error) {
+        propValue := e.exchange.GetFees()
+        sanitised := sanitise(propValue)
+        return json.Marshal(sanitised)
+    }
+
+func (e *CCXTGoExchange) SetFees(newValue []byte) error {
+        
+        var decoded map[string]interface{}
+	    if err := json.Unmarshal(newValue, &decoded); err != nil {
+		    return err
+	    }
+        e.exchange.SetFees(decoded)
+        return nil
+    }
+
+
     func (e *CCXTGoExchange) LoadMarkets(reload bool, params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
         }
+        
         
         
         res := <-e.exchange.LoadMarkets(reload, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) FetchCurrencies(params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
         }
+        
         
         
         res := <-e.exchange.FetchCurrencies(decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) FetchMarkets(params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
         }
+        
         
         
         res := <-e.exchange.FetchMarkets(decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
+    }
+
+    func (e *CCXTGoExchange) SetSandboxMode(enabled bool) error {
+        
+        
+        
+        e.exchange.SetSandboxMode(enabled)
+		return nil
     }
 
     func (e *CCXTGoExchange) FetchAccounts(params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
         }
+        
         
         
         res := <-e.exchange.FetchAccounts(decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) FetchTrades(symbol string, params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
@@ -194,6 +1441,8 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["since"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 since = f
+            } else {
+                since = v
             }
             delete(decoded, "since")
         }
@@ -202,19 +1451,33 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["limit"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 limit = f
+            } else {
+                limit = v
             }
             delete(decoded, "limit")
         }
         
+        
         res := <-e.exchange.FetchTrades(symbol, since, limit, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) FetchTradesWs(symbol string, params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
@@ -224,6 +1487,8 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["since"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 since = f
+            } else {
+                since = v
             }
             delete(decoded, "since")
         }
@@ -232,19 +1497,33 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["limit"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 limit = f
+            } else {
+                limit = v
             }
             delete(decoded, "limit")
         }
         
+        
         res := <-e.exchange.FetchTradesWs(symbol, since, limit, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) WatchLiquidations(symbol string, params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
@@ -254,6 +1533,8 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["since"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 since = f
+            } else {
+                since = v
             }
             delete(decoded, "since")
         }
@@ -262,19 +1543,33 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["limit"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 limit = f
+            } else {
+                limit = v
             }
             delete(decoded, "limit")
         }
         
+        
         res := <-e.exchange.WatchLiquidations(symbol, since, limit, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) WatchLiquidationsForSymbols(symbols string, params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
@@ -284,6 +1579,8 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["since"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 since = f
+            } else {
+                since = v
             }
             delete(decoded, "since")
         }
@@ -292,19 +1589,33 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["limit"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 limit = f
+            } else {
+                limit = v
             }
             delete(decoded, "limit")
         }
         symbols_arr := strings.Split(symbols, ",")
+        
         res := <-e.exchange.WatchLiquidationsForSymbols(symbols_arr, since, limit, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) WatchMyLiquidations(symbol string, params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
@@ -314,6 +1625,8 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["since"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 since = f
+            } else {
+                since = v
             }
             delete(decoded, "since")
         }
@@ -322,19 +1635,33 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["limit"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 limit = f
+            } else {
+                limit = v
             }
             delete(decoded, "limit")
         }
         
+        
         res := <-e.exchange.WatchMyLiquidations(symbol, since, limit, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) WatchMyLiquidationsForSymbols(symbols string, params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
@@ -344,6 +1671,8 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["since"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 since = f
+            } else {
+                since = v
             }
             delete(decoded, "since")
         }
@@ -352,19 +1681,33 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["limit"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 limit = f
+            } else {
+                limit = v
             }
             delete(decoded, "limit")
         }
         symbols_arr := strings.Split(symbols, ",")
+        
         res := <-e.exchange.WatchMyLiquidationsForSymbols(symbols_arr, since, limit, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) WatchTrades(symbol string, params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
@@ -374,6 +1717,8 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["since"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 since = f
+            } else {
+                since = v
             }
             delete(decoded, "since")
         }
@@ -382,19 +1727,33 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["limit"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 limit = f
+            } else {
+                limit = v
             }
             delete(decoded, "limit")
         }
         
+        
         res := <-e.exchange.WatchTrades(symbol, since, limit, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) UnWatchOrders(params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
@@ -404,34 +1763,60 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["symbol"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 symbol = f
+            } else {
+                symbol = v
             }
             delete(decoded, "symbol")
         }
         
+        
         res := <-e.exchange.UnWatchOrders(symbol, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) UnWatchTrades(symbol string, params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
         }
+        
         
         
         res := <-e.exchange.UnWatchTrades(symbol, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) WatchTradesForSymbols(symbols string, params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
@@ -441,6 +1826,8 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["since"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 since = f
+            } else {
+                since = v
             }
             delete(decoded, "since")
         }
@@ -449,34 +1836,60 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["limit"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 limit = f
+            } else {
+                limit = v
             }
             delete(decoded, "limit")
         }
         symbols_arr := strings.Split(symbols, ",")
+        
         res := <-e.exchange.WatchTradesForSymbols(symbols_arr, since, limit, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) UnWatchTradesForSymbols(symbols string, params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
         }
         
         symbols_arr := strings.Split(symbols, ",")
+        
         res := <-e.exchange.UnWatchTradesForSymbols(symbols_arr, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) WatchOrdersForSymbols(symbols string, params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
@@ -486,6 +1899,8 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["since"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 since = f
+            } else {
+                since = v
             }
             delete(decoded, "since")
         }
@@ -494,19 +1909,33 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["limit"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 limit = f
+            } else {
+                limit = v
             }
             delete(decoded, "limit")
         }
         symbols_arr := strings.Split(symbols, ",")
+        
         res := <-e.exchange.WatchOrdersForSymbols(symbols_arr, since, limit, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) WatchOrderBookForSymbols(symbols string, params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
@@ -516,34 +1945,60 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["limit"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 limit = f
+            } else {
+                limit = v
             }
             delete(decoded, "limit")
         }
         symbols_arr := strings.Split(symbols, ",")
+        
         res := <-e.exchange.WatchOrderBookForSymbols(symbols_arr, limit, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) UnWatchOrderBookForSymbols(symbols string, params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
         }
         
         symbols_arr := strings.Split(symbols, ",")
+        
         res := <-e.exchange.UnWatchOrderBookForSymbols(symbols_arr, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) UnWatchPositions(params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
@@ -553,19 +2008,33 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["symbols"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 symbols = f
+            } else {
+                symbols = v
             }
             delete(decoded, "symbols")
         }
         
+        
         res := <-e.exchange.UnWatchPositions(symbols, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) FetchDepositAddresses(params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
@@ -575,19 +2044,33 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["codes"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 codes = f
+            } else {
+                codes = v
             }
             delete(decoded, "codes")
         }
         
+        
         res := <-e.exchange.FetchDepositAddresses(codes, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) FetchOrderBook(symbol string, params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
@@ -597,19 +2080,33 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["limit"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 limit = f
+            } else {
+                limit = v
             }
             delete(decoded, "limit")
         }
         
+        
         res := <-e.exchange.FetchOrderBook(symbol, limit, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) FetchOrderBookWs(symbol string, params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
@@ -619,34 +2116,60 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["limit"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 limit = f
+            } else {
+                limit = v
             }
             delete(decoded, "limit")
         }
         
+        
         res := <-e.exchange.FetchOrderBookWs(symbol, limit, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) FetchMarginMode(symbol string, params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
         }
         
         
+        
         res := <-e.exchange.FetchMarginMode(symbol, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) FetchMarginModes(params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
@@ -656,19 +2179,33 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["symbols"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 symbols = f
+            } else {
+                symbols = v
             }
             delete(decoded, "symbols")
         }
         
+        
         res := <-e.exchange.FetchMarginModes(symbols, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) WatchOrderBook(symbol string, params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
@@ -678,49 +2215,87 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["limit"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 limit = f
+            } else {
+                limit = v
             }
             delete(decoded, "limit")
         }
         
+        
         res := <-e.exchange.WatchOrderBook(symbol, limit, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) UnWatchOrderBook(symbol string, params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
         }
+        
         
         
         res := <-e.exchange.UnWatchOrderBook(symbol, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) FetchTime(params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
         }
+        
         
         
         res := <-e.exchange.FetchTime(decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) FetchTradingLimits(params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
@@ -730,49 +2305,87 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["symbols"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 symbols = f
+            } else {
+                symbols = v
             }
             delete(decoded, "symbols")
         }
         
+        
         res := <-e.exchange.FetchTradingLimits(symbols, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) FetchCrossBorrowRates(params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
         }
+        
         
         
         res := <-e.exchange.FetchCrossBorrowRates(decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) FetchIsolatedBorrowRates(params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
         }
+        
         
         
         res := <-e.exchange.FetchIsolatedBorrowRates(decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) FetchLeverageTiers(params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
@@ -782,19 +2395,33 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["symbols"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 symbols = f
+            } else {
+                symbols = v
             }
             delete(decoded, "symbols")
         }
         
+        
         res := <-e.exchange.FetchLeverageTiers(symbols, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) FetchFundingRates(params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
@@ -804,19 +2431,33 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["symbols"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 symbols = f
+            } else {
+                symbols = v
             }
             delete(decoded, "symbols")
         }
         
+        
         res := <-e.exchange.FetchFundingRates(symbols, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) FetchFundingIntervals(params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
@@ -826,34 +2467,60 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["symbols"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 symbols = f
+            } else {
+                symbols = v
             }
             delete(decoded, "symbols")
         }
         
+        
         res := <-e.exchange.FetchFundingIntervals(symbols, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) Transfer(code string, amount float64, fromAccount string, toAccount string, params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
         }
         
         
+        
         res := <-e.exchange.Transfer(code, amount, fromAccount, toAccount, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) Withdraw(code string, amount float64, address string, params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
@@ -863,34 +2530,60 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["tag"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 tag = f
+            } else {
+                tag = v
             }
             delete(decoded, "tag")
         }
         
+        
         res := <-e.exchange.Withdraw(code, amount, address, tag, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) CreateDepositAddress(code string, params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
         }
         
         
+        
         res := <-e.exchange.CreateDepositAddress(code, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) SetLeverage(leverage int, params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
@@ -900,34 +2593,60 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["symbol"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 symbol = f
+            } else {
+                symbol = v
             }
             delete(decoded, "symbol")
         }
         
+        
         res := <-e.exchange.SetLeverage(leverage, symbol, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) FetchLeverage(symbol string, params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
         }
         
         
+        
         res := <-e.exchange.FetchLeverage(symbol, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) FetchLeverages(params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
@@ -937,19 +2656,33 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["symbols"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 symbols = f
+            } else {
+                symbols = v
             }
             delete(decoded, "symbols")
         }
         
+        
         res := <-e.exchange.FetchLeverages(symbols, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) SetPositionMode(hedged bool, params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
@@ -959,64 +2692,114 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["symbol"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 symbol = f
+            } else {
+                symbol = v
             }
             delete(decoded, "symbol")
         }
         
+        
         res := <-e.exchange.SetPositionMode(hedged, symbol, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) AddMargin(symbol string, amount float64, params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
         }
+        
         
         
         res := <-e.exchange.AddMargin(symbol, amount, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) ReduceMargin(symbol string, amount float64, params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
         }
+        
         
         
         res := <-e.exchange.ReduceMargin(symbol, amount, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) SetMargin(symbol string, amount float64, params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
         }
         
         
+        
         res := <-e.exchange.SetMargin(symbol, amount, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) FetchLongShortRatio(symbol string, params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
@@ -1026,19 +2809,33 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["timeframe"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 timeframe = f
+            } else {
+                timeframe = v
             }
             delete(decoded, "timeframe")
         }
         
+        
         res := <-e.exchange.FetchLongShortRatio(symbol, timeframe, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) FetchLongShortRatioHistory(params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
@@ -1048,6 +2845,8 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["symbol"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 symbol = f
+            } else {
+                symbol = v
             }
             delete(decoded, "symbol")
         }
@@ -1056,6 +2855,8 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["timeframe"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 timeframe = f
+            } else {
+                timeframe = v
             }
             delete(decoded, "timeframe")
         }
@@ -1064,6 +2865,8 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["since"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 since = f
+            } else {
+                since = v
             }
             delete(decoded, "since")
         }
@@ -1072,19 +2875,33 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["limit"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 limit = f
+            } else {
+                limit = v
             }
             delete(decoded, "limit")
         }
         
+        
         res := <-e.exchange.FetchLongShortRatioHistory(symbol, timeframe, since, limit, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) FetchMarginAdjustmentHistory(params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
@@ -1094,6 +2911,8 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["symbol"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 symbol = f
+            } else {
+                symbol = v
             }
             delete(decoded, "symbol")
         }
@@ -1102,6 +2921,8 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["typeVar"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 typeVar = f
+            } else {
+                typeVar = v
             }
             delete(decoded, "typeVar")
         }
@@ -1110,6 +2931,8 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["since"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 since = f
+            } else {
+                since = v
             }
             delete(decoded, "since")
         }
@@ -1118,19 +2941,33 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["limit"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 limit = f
+            } else {
+                limit = v
             }
             delete(decoded, "limit")
         }
         
+        
         res := <-e.exchange.FetchMarginAdjustmentHistory(symbol, typeVar, since, limit, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) SetMarginMode(marginMode string, params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
@@ -1140,34 +2977,60 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["symbol"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 symbol = f
+            } else {
+                symbol = v
             }
             delete(decoded, "symbol")
         }
         
+        
         res := <-e.exchange.SetMarginMode(marginMode, symbol, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) FetchDepositAddressesByNetwork(code string, params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
         }
+        
         
         
         res := <-e.exchange.FetchDepositAddressesByNetwork(code, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) FetchOpenInterestHistory(symbol string, timeframe string, params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
@@ -1177,6 +3040,8 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["since"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 since = f
+            } else {
+                since = v
             }
             delete(decoded, "since")
         }
@@ -1185,34 +3050,60 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["limit"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 limit = f
+            } else {
+                limit = v
             }
             delete(decoded, "limit")
         }
         
+        
         res := <-e.exchange.FetchOpenInterestHistory(symbol, timeframe, since, limit, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) FetchOpenInterest(symbol string, params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
         }
+        
         
         
         res := <-e.exchange.FetchOpenInterest(symbol, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) FetchOpenInterests(params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
@@ -1222,109 +3113,195 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["symbols"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 symbols = f
+            } else {
+                symbols = v
             }
             delete(decoded, "symbols")
         }
         
+        
         res := <-e.exchange.FetchOpenInterests(symbols, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) SignIn(params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
         }
+        
         
         
         res := <-e.exchange.SignIn(decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) FetchBorrowRate(code string, amount float64, params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
         }
+        
         
         
         res := <-e.exchange.FetchBorrowRate(code, amount, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) RepayCrossMargin(code string, amount float64, params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
         }
+        
         
         
         res := <-e.exchange.RepayCrossMargin(code, amount, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) RepayIsolatedMargin(symbol string, code string, amount float64, params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
         }
+        
         
         
         res := <-e.exchange.RepayIsolatedMargin(symbol, code, amount, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) BorrowCrossMargin(code string, amount float64, params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
         }
+        
         
         
         res := <-e.exchange.BorrowCrossMargin(code, amount, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) BorrowIsolatedMargin(symbol string, code string, amount float64, params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
         }
+        
         
         
         res := <-e.exchange.BorrowIsolatedMargin(symbol, code, amount, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) BorrowMargin(code string, amount float64, params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
@@ -1334,19 +3311,33 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["symbol"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 symbol = f
+            } else {
+                symbol = v
             }
             delete(decoded, "symbol")
         }
         
+        
         res := <-e.exchange.BorrowMargin(code, amount, symbol, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) FetchOHLCV(symbol string, timeframe string, params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
@@ -1356,6 +3347,8 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["since"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 since = f
+            } else {
+                since = v
             }
             delete(decoded, "since")
         }
@@ -1364,19 +3357,33 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["limit"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 limit = f
+            } else {
+                limit = v
             }
             delete(decoded, "limit")
         }
         
+        
         res := <-e.exchange.FetchOHLCV(symbol, timeframe, since, limit, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) FetchOHLCVWs(symbol string, timeframe string, params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
@@ -1386,6 +3393,8 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["since"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 since = f
+            } else {
+                since = v
             }
             delete(decoded, "since")
         }
@@ -1394,19 +3403,33 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["limit"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 limit = f
+            } else {
+                limit = v
             }
             delete(decoded, "limit")
         }
         
+        
         res := <-e.exchange.FetchOHLCVWs(symbol, timeframe, since, limit, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) WatchOHLCV(symbol string, timeframe string, params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
@@ -1416,6 +3439,8 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["since"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 since = f
+            } else {
+                since = v
             }
             delete(decoded, "since")
         }
@@ -1424,19 +3449,33 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["limit"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 limit = f
+            } else {
+                limit = v
             }
             delete(decoded, "limit")
         }
         
+        
         res := <-e.exchange.WatchOHLCV(symbol, timeframe, since, limit, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) FetchL2OrderBook(symbol string, params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
@@ -1446,19 +3485,33 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["limit"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 limit = f
+            } else {
+                limit = v
             }
             delete(decoded, "limit")
         }
         
+        
         res := <-e.exchange.FetchL2OrderBook(symbol, limit, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) EditOrder(id string, symbol string, typeVar string, side string, params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
@@ -1468,6 +3521,8 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["amount"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 amount = f
+            } else {
+                amount = v
             }
             delete(decoded, "amount")
         }
@@ -1476,19 +3531,33 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["price"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 price = f
+            } else {
+                price = v
             }
             delete(decoded, "price")
         }
         
+        
         res := <-e.exchange.EditOrder(id, symbol, typeVar, side, amount, price, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) EditOrderWs(id string, symbol string, typeVar string, side string, params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
@@ -1498,6 +3567,8 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["amount"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 amount = f
+            } else {
+                amount = v
             }
             delete(decoded, "amount")
         }
@@ -1506,49 +3577,87 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["price"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 price = f
+            } else {
+                price = v
             }
             delete(decoded, "price")
         }
         
+        
         res := <-e.exchange.EditOrderWs(id, symbol, typeVar, side, amount, price, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) FetchPosition(symbol string, params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
         }
+        
         
         
         res := <-e.exchange.FetchPosition(symbol, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) FetchPositionWs(symbol string, params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
         }
+        
         
         
         res := <-e.exchange.FetchPositionWs(symbol, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) WatchPosition(params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
@@ -1558,19 +3667,33 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["symbol"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 symbol = f
+            } else {
+                symbol = v
             }
             delete(decoded, "symbol")
         }
         
+        
         res := <-e.exchange.WatchPosition(symbol, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) WatchPositions(params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
@@ -1580,6 +3703,8 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["symbols"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 symbols = f
+            } else {
+                symbols = v
             }
             delete(decoded, "symbols")
         }
@@ -1588,6 +3713,8 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["since"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 since = f
+            } else {
+                since = v
             }
             delete(decoded, "since")
         }
@@ -1596,49 +3723,87 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["limit"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 limit = f
+            } else {
+                limit = v
             }
             delete(decoded, "limit")
         }
         
+        
         res := <-e.exchange.WatchPositions(symbols, since, limit, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) FetchPositionsForSymbol(symbol string, params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
         }
+        
         
         
         res := <-e.exchange.FetchPositionsForSymbol(symbol, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) FetchPositionsForSymbolWs(symbol string, params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
         }
+        
         
         
         res := <-e.exchange.FetchPositionsForSymbolWs(symbol, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) FetchPositions(params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
@@ -1648,19 +3813,33 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["symbols"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 symbols = f
+            } else {
+                symbols = v
             }
             delete(decoded, "symbols")
         }
         
+        
         res := <-e.exchange.FetchPositions(symbols, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) FetchPositionsWs(params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
@@ -1670,19 +3849,33 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["symbols"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 symbols = f
+            } else {
+                symbols = v
             }
             delete(decoded, "symbols")
         }
         
+        
         res := <-e.exchange.FetchPositionsWs(symbols, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) FetchPositionsRisk(params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
@@ -1692,19 +3885,33 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["symbols"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 symbols = f
+            } else {
+                symbols = v
             }
             delete(decoded, "symbols")
         }
         
+        
         res := <-e.exchange.FetchPositionsRisk(symbols, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) FetchBidsAsks(params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
@@ -1714,19 +3921,33 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["symbols"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 symbols = f
+            } else {
+                symbols = v
             }
             delete(decoded, "symbols")
         }
         
+        
         res := <-e.exchange.FetchBidsAsks(symbols, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) FetchBorrowInterest(params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
@@ -1736,6 +3957,8 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["code"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 code = f
+            } else {
+                code = v
             }
             delete(decoded, "code")
         }
@@ -1744,6 +3967,8 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["symbol"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 symbol = f
+            } else {
+                symbol = v
             }
             delete(decoded, "symbol")
         }
@@ -1752,6 +3977,8 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["since"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 since = f
+            } else {
+                since = v
             }
             delete(decoded, "since")
         }
@@ -1760,19 +3987,33 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["limit"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 limit = f
+            } else {
+                limit = v
             }
             delete(decoded, "limit")
         }
         
+        
         res := <-e.exchange.FetchBorrowInterest(code, symbol, since, limit, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) FetchLedger(params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
@@ -1782,6 +4023,8 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["code"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 code = f
+            } else {
+                code = v
             }
             delete(decoded, "code")
         }
@@ -1790,6 +4033,8 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["since"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 since = f
+            } else {
+                since = v
             }
             delete(decoded, "since")
         }
@@ -1798,19 +4043,33 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["limit"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 limit = f
+            } else {
+                limit = v
             }
             delete(decoded, "limit")
         }
         
+        
         res := <-e.exchange.FetchLedger(code, since, limit, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) FetchLedgerEntry(id string, params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
@@ -1820,94 +4079,168 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["code"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 code = f
+            } else {
+                code = v
             }
             delete(decoded, "code")
         }
         
+        
         res := <-e.exchange.FetchLedgerEntry(id, code, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) FetchBalance(params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
         }
+        
         
         
         res := <-e.exchange.FetchBalance(decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) FetchBalanceWs(params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
         }
+        
         
         
         res := <-e.exchange.FetchBalanceWs(decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) WatchBalance(params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
         }
+        
         
         
         res := <-e.exchange.WatchBalance(decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) FetchStatus(params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
         }
+        
         
         
         res := <-e.exchange.FetchStatus(decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) FetchTransactionFee(code string, params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
         }
+        
         
         
         res := <-e.exchange.FetchTransactionFee(code, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) FetchTransactionFees(params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
@@ -1917,131 +4250,195 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["codes"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 codes = f
+            } else {
+                codes = v
             }
             delete(decoded, "codes")
         }
+        
         
         res := <-e.exchange.FetchTransactionFees(codes, decoded)
-        if err, ok := res.(error); ok {
-            return nil, err
-        }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
-    }
-
-    func (e *CCXTGoExchange) FetchDepositWithdrawFees(params []byte) ([]byte, error) {
-        var decoded map[string]interface{}
-        if err := json.Unmarshal(params, &decoded); err != nil {
-            return nil, err
-        }
-        
-        var codes interface{} = nil
-        if v, ok := decoded["codes"]; ok && v != nil {
-            if f, ok := v.([]interface{}); ok {
-                codes = f
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
             }
-            delete(decoded, "codes")
+        case error:
+            return nil, v
         }
-        
-        res := <-e.exchange.FetchDepositWithdrawFees(codes, decoded)
-        if err, ok := res.(error); ok {
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) FetchDepositWithdrawFee(code string, params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
         }
+        
         
         
         res := <-e.exchange.FetchDepositWithdrawFee(code, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) FetchCrossBorrowRate(code string, params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
         }
+        
         
         
         res := <-e.exchange.FetchCrossBorrowRate(code, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) FetchIsolatedBorrowRate(symbol string, params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
         }
+        
         
         
         res := <-e.exchange.FetchIsolatedBorrowRate(symbol, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) FetchTicker(symbol string, params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
         }
+        
         
         
         res := <-e.exchange.FetchTicker(symbol, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) FetchTickerWs(symbol string, params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
         }
+        
         
         
         res := <-e.exchange.FetchTickerWs(symbol, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) WatchTicker(symbol string, params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
         }
+        
         
         
         res := <-e.exchange.WatchTicker(symbol, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) FetchTickers(params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
@@ -2051,19 +4448,33 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["symbols"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 symbols = f
+            } else {
+                symbols = v
             }
             delete(decoded, "symbols")
         }
         
+        
         res := <-e.exchange.FetchTickers(symbols, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) FetchMarkPrices(params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
@@ -2073,19 +4484,33 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["symbols"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 symbols = f
+            } else {
+                symbols = v
             }
             delete(decoded, "symbols")
         }
         
+        
         res := <-e.exchange.FetchMarkPrices(symbols, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) FetchTickersWs(params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
@@ -2095,19 +4520,33 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["symbols"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 symbols = f
+            } else {
+                symbols = v
             }
             delete(decoded, "symbols")
         }
         
+        
         res := <-e.exchange.FetchTickersWs(symbols, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) FetchOrderBooks(params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
@@ -2117,6 +4556,8 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["symbols"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 symbols = f
+            } else {
+                symbols = v
             }
             delete(decoded, "symbols")
         }
@@ -2125,19 +4566,33 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["limit"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 limit = f
+            } else {
+                limit = v
             }
             delete(decoded, "limit")
         }
         
+        
         res := <-e.exchange.FetchOrderBooks(symbols, limit, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) WatchBidsAsks(params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
@@ -2147,19 +4602,33 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["symbols"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 symbols = f
+            } else {
+                symbols = v
             }
             delete(decoded, "symbols")
         }
         
+        
         res := <-e.exchange.WatchBidsAsks(symbols, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) WatchTickers(params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
@@ -2169,19 +4638,33 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["symbols"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 symbols = f
+            } else {
+                symbols = v
             }
             delete(decoded, "symbols")
         }
         
+        
         res := <-e.exchange.WatchTickers(symbols, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) UnWatchTickers(params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
@@ -2191,19 +4674,33 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["symbols"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 symbols = f
+            } else {
+                symbols = v
             }
             delete(decoded, "symbols")
         }
         
+        
         res := <-e.exchange.UnWatchTickers(symbols, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) FetchOrder(id string, params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
@@ -2213,19 +4710,33 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["symbol"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 symbol = f
+            } else {
+                symbol = v
             }
             delete(decoded, "symbol")
         }
         
+        
         res := <-e.exchange.FetchOrder(id, symbol, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) FetchOrderWs(id string, params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
@@ -2235,19 +4746,33 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["symbol"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 symbol = f
+            } else {
+                symbol = v
             }
             delete(decoded, "symbol")
         }
         
+        
         res := <-e.exchange.FetchOrderWs(id, symbol, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) CreateOrder(symbol string, typeVar string, side string, amount float64, params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
@@ -2257,19 +4782,33 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["price"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 price = f
+            } else {
+                price = v
             }
             delete(decoded, "price")
         }
         
+        
         res := <-e.exchange.CreateOrder(symbol, typeVar, side, amount, price, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) FetchConvertTrade(id string, params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
@@ -2279,19 +4818,33 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["code"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 code = f
+            } else {
+                code = v
             }
             delete(decoded, "code")
         }
         
+        
         res := <-e.exchange.FetchConvertTrade(id, code, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) FetchConvertTradeHistory(params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
@@ -2301,6 +4854,8 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["code"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 code = f
+            } else {
+                code = v
             }
             delete(decoded, "code")
         }
@@ -2309,6 +4864,8 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["since"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 since = f
+            } else {
+                since = v
             }
             delete(decoded, "since")
         }
@@ -2317,19 +4874,33 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["limit"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 limit = f
+            } else {
+                limit = v
             }
             delete(decoded, "limit")
         }
         
+        
         res := <-e.exchange.FetchConvertTradeHistory(code, since, limit, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) FetchPositionMode(params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
@@ -2339,19 +4910,33 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["symbol"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 symbol = f
+            } else {
+                symbol = v
             }
             delete(decoded, "symbol")
         }
         
+        
         res := <-e.exchange.FetchPositionMode(symbol, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) CreateTrailingAmountOrder(symbol string, typeVar string, side string, amount float64, params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
@@ -2361,6 +4946,8 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["price"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 price = f
+            } else {
+                price = v
             }
             delete(decoded, "price")
         }
@@ -2369,6 +4956,8 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["trailingAmount"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 trailingAmount = f
+            } else {
+                trailingAmount = v
             }
             delete(decoded, "trailingAmount")
         }
@@ -2377,19 +4966,33 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["trailingTriggerPrice"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 trailingTriggerPrice = f
+            } else {
+                trailingTriggerPrice = v
             }
             delete(decoded, "trailingTriggerPrice")
         }
         
+        
         res := <-e.exchange.CreateTrailingAmountOrder(symbol, typeVar, side, amount, price, trailingAmount, trailingTriggerPrice, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) CreateTrailingAmountOrderWs(symbol string, typeVar string, side string, amount float64, params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
@@ -2399,6 +5002,8 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["price"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 price = f
+            } else {
+                price = v
             }
             delete(decoded, "price")
         }
@@ -2407,6 +5012,8 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["trailingAmount"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 trailingAmount = f
+            } else {
+                trailingAmount = v
             }
             delete(decoded, "trailingAmount")
         }
@@ -2415,19 +5022,33 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["trailingTriggerPrice"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 trailingTriggerPrice = f
+            } else {
+                trailingTriggerPrice = v
             }
             delete(decoded, "trailingTriggerPrice")
         }
         
+        
         res := <-e.exchange.CreateTrailingAmountOrderWs(symbol, typeVar, side, amount, price, trailingAmount, trailingTriggerPrice, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) CreateTrailingPercentOrder(symbol string, typeVar string, side string, amount float64, params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
@@ -2437,6 +5058,8 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["price"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 price = f
+            } else {
+                price = v
             }
             delete(decoded, "price")
         }
@@ -2445,6 +5068,8 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["trailingPercent"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 trailingPercent = f
+            } else {
+                trailingPercent = v
             }
             delete(decoded, "trailingPercent")
         }
@@ -2453,19 +5078,33 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["trailingTriggerPrice"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 trailingTriggerPrice = f
+            } else {
+                trailingTriggerPrice = v
             }
             delete(decoded, "trailingTriggerPrice")
         }
         
+        
         res := <-e.exchange.CreateTrailingPercentOrder(symbol, typeVar, side, amount, price, trailingPercent, trailingTriggerPrice, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) CreateTrailingPercentOrderWs(symbol string, typeVar string, side string, amount float64, params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
@@ -2475,6 +5114,8 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["price"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 price = f
+            } else {
+                price = v
             }
             delete(decoded, "price")
         }
@@ -2483,6 +5124,8 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["trailingPercent"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 trailingPercent = f
+            } else {
+                trailingPercent = v
             }
             delete(decoded, "trailingPercent")
         }
@@ -2491,79 +5134,141 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["trailingTriggerPrice"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 trailingTriggerPrice = f
+            } else {
+                trailingTriggerPrice = v
             }
             delete(decoded, "trailingTriggerPrice")
         }
         
+        
         res := <-e.exchange.CreateTrailingPercentOrderWs(symbol, typeVar, side, amount, price, trailingPercent, trailingTriggerPrice, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) CreateMarketOrderWithCost(symbol string, side string, cost float64, params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
         }
+        
         
         
         res := <-e.exchange.CreateMarketOrderWithCost(symbol, side, cost, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) CreateMarketBuyOrderWithCost(symbol string, cost float64, params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
         }
+        
         
         
         res := <-e.exchange.CreateMarketBuyOrderWithCost(symbol, cost, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) CreateMarketSellOrderWithCost(symbol string, cost float64, params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
         }
+        
         
         
         res := <-e.exchange.CreateMarketSellOrderWithCost(symbol, cost, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) CreateMarketOrderWithCostWs(symbol string, side string, cost float64, params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
         }
+        
         
         
         res := <-e.exchange.CreateMarketOrderWithCostWs(symbol, side, cost, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) CreateTriggerOrder(symbol string, typeVar string, side string, amount float64, params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
@@ -2573,6 +5278,8 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["price"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 price = f
+            } else {
+                price = v
             }
             delete(decoded, "price")
         }
@@ -2581,19 +5288,33 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["triggerPrice"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 triggerPrice = f
+            } else {
+                triggerPrice = v
             }
             delete(decoded, "triggerPrice")
         }
         
+        
         res := <-e.exchange.CreateTriggerOrder(symbol, typeVar, side, amount, price, triggerPrice, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) CreateTriggerOrderWs(symbol string, typeVar string, side string, amount float64, params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
@@ -2603,6 +5324,8 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["price"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 price = f
+            } else {
+                price = v
             }
             delete(decoded, "price")
         }
@@ -2611,19 +5334,33 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["triggerPrice"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 triggerPrice = f
+            } else {
+                triggerPrice = v
             }
             delete(decoded, "triggerPrice")
         }
         
+        
         res := <-e.exchange.CreateTriggerOrderWs(symbol, typeVar, side, amount, price, triggerPrice, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) CreateStopLossOrder(symbol string, typeVar string, side string, amount float64, params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
@@ -2633,6 +5370,8 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["price"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 price = f
+            } else {
+                price = v
             }
             delete(decoded, "price")
         }
@@ -2641,19 +5380,33 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["stopLossPrice"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 stopLossPrice = f
+            } else {
+                stopLossPrice = v
             }
             delete(decoded, "stopLossPrice")
         }
         
+        
         res := <-e.exchange.CreateStopLossOrder(symbol, typeVar, side, amount, price, stopLossPrice, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) CreateStopLossOrderWs(symbol string, typeVar string, side string, amount float64, params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
@@ -2663,6 +5416,8 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["price"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 price = f
+            } else {
+                price = v
             }
             delete(decoded, "price")
         }
@@ -2671,19 +5426,33 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["stopLossPrice"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 stopLossPrice = f
+            } else {
+                stopLossPrice = v
             }
             delete(decoded, "stopLossPrice")
         }
         
+        
         res := <-e.exchange.CreateStopLossOrderWs(symbol, typeVar, side, amount, price, stopLossPrice, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) CreateTakeProfitOrder(symbol string, typeVar string, side string, amount float64, params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
@@ -2693,6 +5462,8 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["price"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 price = f
+            } else {
+                price = v
             }
             delete(decoded, "price")
         }
@@ -2701,19 +5472,33 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["takeProfitPrice"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 takeProfitPrice = f
+            } else {
+                takeProfitPrice = v
             }
             delete(decoded, "takeProfitPrice")
         }
         
+        
         res := <-e.exchange.CreateTakeProfitOrder(symbol, typeVar, side, amount, price, takeProfitPrice, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) CreateTakeProfitOrderWs(symbol string, typeVar string, side string, amount float64, params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
@@ -2723,6 +5508,8 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["price"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 price = f
+            } else {
+                price = v
             }
             delete(decoded, "price")
         }
@@ -2731,19 +5518,33 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["takeProfitPrice"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 takeProfitPrice = f
+            } else {
+                takeProfitPrice = v
             }
             delete(decoded, "takeProfitPrice")
         }
         
+        
         res := <-e.exchange.CreateTakeProfitOrderWs(symbol, typeVar, side, amount, price, takeProfitPrice, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) CreateOrderWithTakeProfitAndStopLoss(symbol string, typeVar string, side string, amount float64, params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
@@ -2753,6 +5554,8 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["price"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 price = f
+            } else {
+                price = v
             }
             delete(decoded, "price")
         }
@@ -2761,6 +5564,8 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["takeProfit"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 takeProfit = f
+            } else {
+                takeProfit = v
             }
             delete(decoded, "takeProfit")
         }
@@ -2769,19 +5574,33 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["stopLoss"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 stopLoss = f
+            } else {
+                stopLoss = v
             }
             delete(decoded, "stopLoss")
         }
         
+        
         res := <-e.exchange.CreateOrderWithTakeProfitAndStopLoss(symbol, typeVar, side, amount, price, takeProfit, stopLoss, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) CreateOrderWithTakeProfitAndStopLossWs(symbol string, typeVar string, side string, amount float64, params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
@@ -2791,6 +5610,8 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["price"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 price = f
+            } else {
+                price = v
             }
             delete(decoded, "price")
         }
@@ -2799,6 +5620,8 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["takeProfit"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 takeProfit = f
+            } else {
+                takeProfit = v
             }
             delete(decoded, "takeProfit")
         }
@@ -2807,19 +5630,33 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["stopLoss"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 stopLoss = f
+            } else {
+                stopLoss = v
             }
             delete(decoded, "stopLoss")
         }
         
+        
         res := <-e.exchange.CreateOrderWithTakeProfitAndStopLossWs(symbol, typeVar, side, amount, price, takeProfit, stopLoss, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) CreateOrderWs(symbol string, typeVar string, side string, amount float64, params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
@@ -2829,19 +5666,33 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["price"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 price = f
+            } else {
+                price = v
             }
             delete(decoded, "price")
         }
         
+        
         res := <-e.exchange.CreateOrderWs(symbol, typeVar, side, amount, price, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) CancelOrder(id string, params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
@@ -2851,19 +5702,33 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["symbol"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 symbol = f
+            } else {
+                symbol = v
             }
             delete(decoded, "symbol")
         }
         
+        
         res := <-e.exchange.CancelOrder(id, symbol, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) CancelOrderWs(id string, params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
@@ -2873,19 +5738,33 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["symbol"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 symbol = f
+            } else {
+                symbol = v
             }
             delete(decoded, "symbol")
         }
         
+        
         res := <-e.exchange.CancelOrderWs(id, symbol, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) CancelOrdersWs(ids string, params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
@@ -2895,19 +5774,33 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["symbol"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 symbol = f
+            } else {
+                symbol = v
             }
             delete(decoded, "symbol")
         }
         ids_arr := strings.Split(ids, ",")
+        
         res := <-e.exchange.CancelOrdersWs(ids_arr, symbol, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) CancelAllOrders(params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
@@ -2917,19 +5810,33 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["symbol"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 symbol = f
+            } else {
+                symbol = v
             }
             delete(decoded, "symbol")
         }
         
+        
         res := <-e.exchange.CancelAllOrders(symbol, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) CancelAllOrdersWs(params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
@@ -2939,19 +5846,33 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["symbol"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 symbol = f
+            } else {
+                symbol = v
             }
             delete(decoded, "symbol")
         }
         
+        
         res := <-e.exchange.CancelAllOrdersWs(symbol, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) FetchOrders(params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
@@ -2961,6 +5882,8 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["symbol"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 symbol = f
+            } else {
+                symbol = v
             }
             delete(decoded, "symbol")
         }
@@ -2969,6 +5892,8 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["since"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 since = f
+            } else {
+                since = v
             }
             delete(decoded, "since")
         }
@@ -2977,19 +5902,33 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["limit"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 limit = f
+            } else {
+                limit = v
             }
             delete(decoded, "limit")
         }
         
+        
         res := <-e.exchange.FetchOrders(symbol, since, limit, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) FetchOrdersWs(params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
@@ -2999,6 +5938,8 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["symbol"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 symbol = f
+            } else {
+                symbol = v
             }
             delete(decoded, "symbol")
         }
@@ -3007,6 +5948,8 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["since"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 since = f
+            } else {
+                since = v
             }
             delete(decoded, "since")
         }
@@ -3015,19 +5958,33 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["limit"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 limit = f
+            } else {
+                limit = v
             }
             delete(decoded, "limit")
         }
         
+        
         res := <-e.exchange.FetchOrdersWs(symbol, since, limit, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) FetchOrderTrades(id string, params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
@@ -3037,6 +5994,8 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["symbol"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 symbol = f
+            } else {
+                symbol = v
             }
             delete(decoded, "symbol")
         }
@@ -3045,6 +6004,8 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["since"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 since = f
+            } else {
+                since = v
             }
             delete(decoded, "since")
         }
@@ -3053,19 +6014,33 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["limit"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 limit = f
+            } else {
+                limit = v
             }
             delete(decoded, "limit")
         }
         
+        
         res := <-e.exchange.FetchOrderTrades(id, symbol, since, limit, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) WatchOrders(params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
@@ -3075,6 +6050,8 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["symbol"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 symbol = f
+            } else {
+                symbol = v
             }
             delete(decoded, "symbol")
         }
@@ -3083,6 +6060,8 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["since"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 since = f
+            } else {
+                since = v
             }
             delete(decoded, "since")
         }
@@ -3091,19 +6070,33 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["limit"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 limit = f
+            } else {
+                limit = v
             }
             delete(decoded, "limit")
         }
         
+        
         res := <-e.exchange.WatchOrders(symbol, since, limit, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) FetchOpenOrders(params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
@@ -3113,6 +6106,8 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["symbol"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 symbol = f
+            } else {
+                symbol = v
             }
             delete(decoded, "symbol")
         }
@@ -3121,6 +6116,8 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["since"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 since = f
+            } else {
+                since = v
             }
             delete(decoded, "since")
         }
@@ -3129,19 +6126,33 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["limit"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 limit = f
+            } else {
+                limit = v
             }
             delete(decoded, "limit")
         }
         
+        
         res := <-e.exchange.FetchOpenOrders(symbol, since, limit, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) FetchOpenOrdersWs(params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
@@ -3151,6 +6162,8 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["symbol"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 symbol = f
+            } else {
+                symbol = v
             }
             delete(decoded, "symbol")
         }
@@ -3159,6 +6172,8 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["since"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 since = f
+            } else {
+                since = v
             }
             delete(decoded, "since")
         }
@@ -3167,19 +6182,33 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["limit"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 limit = f
+            } else {
+                limit = v
             }
             delete(decoded, "limit")
         }
         
+        
         res := <-e.exchange.FetchOpenOrdersWs(symbol, since, limit, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) FetchClosedOrders(params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
@@ -3189,6 +6218,8 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["symbol"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 symbol = f
+            } else {
+                symbol = v
             }
             delete(decoded, "symbol")
         }
@@ -3197,6 +6228,8 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["since"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 since = f
+            } else {
+                since = v
             }
             delete(decoded, "since")
         }
@@ -3205,19 +6238,33 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["limit"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 limit = f
+            } else {
+                limit = v
             }
             delete(decoded, "limit")
         }
         
+        
         res := <-e.exchange.FetchClosedOrders(symbol, since, limit, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) FetchCanceledAndClosedOrders(params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
@@ -3227,6 +6274,8 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["symbol"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 symbol = f
+            } else {
+                symbol = v
             }
             delete(decoded, "symbol")
         }
@@ -3235,6 +6284,8 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["since"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 since = f
+            } else {
+                since = v
             }
             delete(decoded, "since")
         }
@@ -3243,19 +6294,33 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["limit"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 limit = f
+            } else {
+                limit = v
             }
             delete(decoded, "limit")
         }
         
+        
         res := <-e.exchange.FetchCanceledAndClosedOrders(symbol, since, limit, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) FetchClosedOrdersWs(params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
@@ -3265,6 +6330,8 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["symbol"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 symbol = f
+            } else {
+                symbol = v
             }
             delete(decoded, "symbol")
         }
@@ -3273,6 +6340,8 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["since"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 since = f
+            } else {
+                since = v
             }
             delete(decoded, "since")
         }
@@ -3281,19 +6350,33 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["limit"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 limit = f
+            } else {
+                limit = v
             }
             delete(decoded, "limit")
         }
         
+        
         res := <-e.exchange.FetchClosedOrdersWs(symbol, since, limit, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) FetchMyTrades(params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
@@ -3303,6 +6386,8 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["symbol"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 symbol = f
+            } else {
+                symbol = v
             }
             delete(decoded, "symbol")
         }
@@ -3311,6 +6396,8 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["since"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 since = f
+            } else {
+                since = v
             }
             delete(decoded, "since")
         }
@@ -3319,19 +6406,33 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["limit"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 limit = f
+            } else {
+                limit = v
             }
             delete(decoded, "limit")
         }
         
+        
         res := <-e.exchange.FetchMyTrades(symbol, since, limit, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) FetchMyLiquidations(params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
@@ -3341,6 +6442,8 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["symbol"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 symbol = f
+            } else {
+                symbol = v
             }
             delete(decoded, "symbol")
         }
@@ -3349,6 +6452,8 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["since"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 since = f
+            } else {
+                since = v
             }
             delete(decoded, "since")
         }
@@ -3357,19 +6462,33 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["limit"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 limit = f
+            } else {
+                limit = v
             }
             delete(decoded, "limit")
         }
         
+        
         res := <-e.exchange.FetchMyLiquidations(symbol, since, limit, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) FetchLiquidations(symbol string, params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
@@ -3379,6 +6498,8 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["since"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 since = f
+            } else {
+                since = v
             }
             delete(decoded, "since")
         }
@@ -3387,19 +6508,33 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["limit"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 limit = f
+            } else {
+                limit = v
             }
             delete(decoded, "limit")
         }
         
+        
         res := <-e.exchange.FetchLiquidations(symbol, since, limit, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) FetchMyTradesWs(params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
@@ -3409,6 +6544,8 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["symbol"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 symbol = f
+            } else {
+                symbol = v
             }
             delete(decoded, "symbol")
         }
@@ -3417,6 +6554,8 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["since"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 since = f
+            } else {
+                since = v
             }
             delete(decoded, "since")
         }
@@ -3425,19 +6564,33 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["limit"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 limit = f
+            } else {
+                limit = v
             }
             delete(decoded, "limit")
         }
         
+        
         res := <-e.exchange.FetchMyTradesWs(symbol, since, limit, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) WatchMyTrades(params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
@@ -3447,6 +6600,8 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["symbol"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 symbol = f
+            } else {
+                symbol = v
             }
             delete(decoded, "symbol")
         }
@@ -3455,6 +6610,8 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["since"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 since = f
+            } else {
+                since = v
             }
             delete(decoded, "since")
         }
@@ -3463,64 +6620,114 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["limit"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 limit = f
+            } else {
+                limit = v
             }
             delete(decoded, "limit")
         }
         
+        
         res := <-e.exchange.WatchMyTrades(symbol, since, limit, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) FetchGreeks(symbol string, params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
         }
+        
         
         
         res := <-e.exchange.FetchGreeks(symbol, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) FetchOptionChain(code string, params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
         }
+        
         
         
         res := <-e.exchange.FetchOptionChain(code, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) FetchOption(symbol string, params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
         }
         
         
+        
         res := <-e.exchange.FetchOption(symbol, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) FetchConvertQuote(fromCode string, toCode string, params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
@@ -3530,19 +6737,33 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["amount"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 amount = f
+            } else {
+                amount = v
             }
             delete(decoded, "amount")
         }
         
+        
         res := <-e.exchange.FetchConvertQuote(fromCode, toCode, amount, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) FetchDepositsWithdrawals(params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
@@ -3552,6 +6773,8 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["code"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 code = f
+            } else {
+                code = v
             }
             delete(decoded, "code")
         }
@@ -3560,6 +6783,8 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["since"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 since = f
+            } else {
+                since = v
             }
             delete(decoded, "since")
         }
@@ -3568,19 +6793,33 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["limit"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 limit = f
+            } else {
+                limit = v
             }
             delete(decoded, "limit")
         }
         
+        
         res := <-e.exchange.FetchDepositsWithdrawals(code, since, limit, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) FetchDeposits(params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
@@ -3590,6 +6829,8 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["code"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 code = f
+            } else {
+                code = v
             }
             delete(decoded, "code")
         }
@@ -3598,6 +6839,8 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["since"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 since = f
+            } else {
+                since = v
             }
             delete(decoded, "since")
         }
@@ -3606,19 +6849,33 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["limit"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 limit = f
+            } else {
+                limit = v
             }
             delete(decoded, "limit")
         }
         
+        
         res := <-e.exchange.FetchDeposits(code, since, limit, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) FetchWithdrawals(params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
@@ -3628,6 +6885,8 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["code"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 code = f
+            } else {
+                code = v
             }
             delete(decoded, "code")
         }
@@ -3636,6 +6895,8 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["since"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 since = f
+            } else {
+                since = v
             }
             delete(decoded, "since")
         }
@@ -3644,19 +6905,33 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["limit"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 limit = f
+            } else {
+                limit = v
             }
             delete(decoded, "limit")
         }
         
+        
         res := <-e.exchange.FetchWithdrawals(code, since, limit, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) FetchDepositsWs(params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
@@ -3666,6 +6941,8 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["code"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 code = f
+            } else {
+                code = v
             }
             delete(decoded, "code")
         }
@@ -3674,6 +6951,8 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["since"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 since = f
+            } else {
+                since = v
             }
             delete(decoded, "since")
         }
@@ -3682,19 +6961,33 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["limit"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 limit = f
+            } else {
+                limit = v
             }
             delete(decoded, "limit")
         }
         
+        
         res := <-e.exchange.FetchDepositsWs(code, since, limit, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) FetchWithdrawalsWs(params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
@@ -3704,6 +6997,8 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["code"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 code = f
+            } else {
+                code = v
             }
             delete(decoded, "code")
         }
@@ -3712,6 +7007,8 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["since"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 since = f
+            } else {
+                since = v
             }
             delete(decoded, "since")
         }
@@ -3720,19 +7017,33 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["limit"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 limit = f
+            } else {
+                limit = v
             }
             delete(decoded, "limit")
         }
         
+        
         res := <-e.exchange.FetchWithdrawalsWs(code, since, limit, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) FetchFundingRateHistory(params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
@@ -3742,6 +7053,8 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["symbol"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 symbol = f
+            } else {
+                symbol = v
             }
             delete(decoded, "symbol")
         }
@@ -3750,6 +7063,8 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["since"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 since = f
+            } else {
+                since = v
             }
             delete(decoded, "since")
         }
@@ -3758,19 +7073,33 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["limit"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 limit = f
+            } else {
+                limit = v
             }
             delete(decoded, "limit")
         }
         
+        
         res := <-e.exchange.FetchFundingRateHistory(symbol, since, limit, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) FetchFundingHistory(params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
@@ -3780,6 +7109,8 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["symbol"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 symbol = f
+            } else {
+                symbol = v
             }
             delete(decoded, "symbol")
         }
@@ -3788,6 +7119,8 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["since"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 since = f
+            } else {
+                since = v
             }
             delete(decoded, "since")
         }
@@ -3796,19 +7129,33 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["limit"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 limit = f
+            } else {
+                limit = v
             }
             delete(decoded, "limit")
         }
         
+        
         res := <-e.exchange.FetchFundingHistory(symbol, since, limit, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) ClosePosition(symbol string, params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
@@ -3818,34 +7165,60 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["side"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 side = f
+            } else {
+                side = v
             }
             delete(decoded, "side")
         }
         
+        
         res := <-e.exchange.ClosePosition(symbol, side, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) CloseAllPositions(params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
         }
+        
         
         
         res := <-e.exchange.CloseAllPositions(decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) FetchL3OrderBook(symbol string, params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
@@ -3855,64 +7228,114 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["limit"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 limit = f
+            } else {
+                limit = v
             }
             delete(decoded, "limit")
         }
         
+        
         res := <-e.exchange.FetchL3OrderBook(symbol, limit, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) FetchDepositAddress(code string, params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
         }
+        
         
         
         res := <-e.exchange.FetchDepositAddress(code, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) CreateLimitOrder(symbol string, side string, amount float64, price float64, params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
         }
+        
         
         
         res := <-e.exchange.CreateLimitOrder(symbol, side, amount, price, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) CreateLimitOrderWs(symbol string, side string, amount float64, price float64, params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
         }
+        
         
         
         res := <-e.exchange.CreateLimitOrderWs(symbol, side, amount, price, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) CreateMarketOrder(symbol string, side string, amount float64, params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
@@ -3922,19 +7345,33 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["price"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 price = f
+            } else {
+                price = v
             }
             delete(decoded, "price")
         }
         
+        
         res := <-e.exchange.CreateMarketOrder(symbol, side, amount, price, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) CreateMarketOrderWs(symbol string, side string, amount float64, params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
@@ -3944,154 +7381,276 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["price"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 price = f
+            } else {
+                price = v
             }
             delete(decoded, "price")
         }
         
+        
         res := <-e.exchange.CreateMarketOrderWs(symbol, side, amount, price, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) CreateLimitBuyOrder(symbol string, amount float64, price float64, params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
         }
+        
         
         
         res := <-e.exchange.CreateLimitBuyOrder(symbol, amount, price, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) CreateLimitBuyOrderWs(symbol string, amount float64, price float64, params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
         }
+        
         
         
         res := <-e.exchange.CreateLimitBuyOrderWs(symbol, amount, price, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) CreateLimitSellOrder(symbol string, amount float64, price float64, params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
         }
+        
         
         
         res := <-e.exchange.CreateLimitSellOrder(symbol, amount, price, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) CreateLimitSellOrderWs(symbol string, amount float64, price float64, params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
         }
+        
         
         
         res := <-e.exchange.CreateLimitSellOrderWs(symbol, amount, price, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) CreateMarketBuyOrder(symbol string, amount float64, params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
         }
+        
         
         
         res := <-e.exchange.CreateMarketBuyOrder(symbol, amount, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) CreateMarketBuyOrderWs(symbol string, amount float64, params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
         }
+        
         
         
         res := <-e.exchange.CreateMarketBuyOrderWs(symbol, amount, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) CreateMarketSellOrder(symbol string, amount float64, params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
         }
+        
         
         
         res := <-e.exchange.CreateMarketSellOrder(symbol, amount, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) CreateMarketSellOrderWs(symbol string, amount float64, params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
         }
+        
         
         
         res := <-e.exchange.CreateMarketSellOrderWs(symbol, amount, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) FetchMarketLeverageTiers(symbol string, params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
         }
+        
         
         
         res := <-e.exchange.FetchMarketLeverageTiers(symbol, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) CreatePostOnlyOrder(symbol string, typeVar string, side string, amount float64, params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
@@ -4101,19 +7660,33 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["price"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 price = f
+            } else {
+                price = v
             }
             delete(decoded, "price")
         }
         
+        
         res := <-e.exchange.CreatePostOnlyOrder(symbol, typeVar, side, amount, price, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) CreatePostOnlyOrderWs(symbol string, typeVar string, side string, amount float64, params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
@@ -4123,19 +7696,33 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["price"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 price = f
+            } else {
+                price = v
             }
             delete(decoded, "price")
         }
         
+        
         res := <-e.exchange.CreatePostOnlyOrderWs(symbol, typeVar, side, amount, price, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) CreateReduceOnlyOrder(symbol string, typeVar string, side string, amount float64, params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
@@ -4145,19 +7732,33 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["price"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 price = f
+            } else {
+                price = v
             }
             delete(decoded, "price")
         }
         
+        
         res := <-e.exchange.CreateReduceOnlyOrder(symbol, typeVar, side, amount, price, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) CreateReduceOnlyOrderWs(symbol string, typeVar string, side string, amount float64, params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
@@ -4167,19 +7768,33 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["price"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 price = f
+            } else {
+                price = v
             }
             delete(decoded, "price")
         }
         
+        
         res := <-e.exchange.CreateReduceOnlyOrderWs(symbol, typeVar, side, amount, price, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) CreateStopOrder(symbol string, typeVar string, side string, amount float64, params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
@@ -4189,6 +7804,8 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["price"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 price = f
+            } else {
+                price = v
             }
             delete(decoded, "price")
         }
@@ -4197,19 +7814,33 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["triggerPrice"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 triggerPrice = f
+            } else {
+                triggerPrice = v
             }
             delete(decoded, "triggerPrice")
         }
         
+        
         res := <-e.exchange.CreateStopOrder(symbol, typeVar, side, amount, price, triggerPrice, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) CreateStopOrderWs(symbol string, typeVar string, side string, amount float64, params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
@@ -4219,6 +7850,8 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["price"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 price = f
+            } else {
+                price = v
             }
             delete(decoded, "price")
         }
@@ -4227,79 +7860,141 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["triggerPrice"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 triggerPrice = f
+            } else {
+                triggerPrice = v
             }
             delete(decoded, "triggerPrice")
         }
         
+        
         res := <-e.exchange.CreateStopOrderWs(symbol, typeVar, side, amount, price, triggerPrice, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) CreateStopLimitOrder(symbol string, side string, amount float64, price float64, triggerPrice float64, params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
         }
+        
         
         
         res := <-e.exchange.CreateStopLimitOrder(symbol, side, amount, price, triggerPrice, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) CreateStopLimitOrderWs(symbol string, side string, amount float64, price float64, triggerPrice float64, params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
         }
+        
         
         
         res := <-e.exchange.CreateStopLimitOrderWs(symbol, side, amount, price, triggerPrice, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) CreateStopMarketOrder(symbol string, side string, amount float64, triggerPrice float64, params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
         }
+        
         
         
         res := <-e.exchange.CreateStopMarketOrder(symbol, side, amount, triggerPrice, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) CreateStopMarketOrderWs(symbol string, side string, amount float64, triggerPrice float64, params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
         }
+        
         
         
         res := <-e.exchange.CreateStopMarketOrderWs(symbol, side, amount, triggerPrice, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) FetchLastPrices(params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
@@ -4309,109 +8004,195 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["symbols"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 symbols = f
+            } else {
+                symbols = v
             }
             delete(decoded, "symbols")
         }
         
+        
         res := <-e.exchange.FetchLastPrices(symbols, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) FetchTradingFees(params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
         }
+        
         
         
         res := <-e.exchange.FetchTradingFees(decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) FetchTradingFeesWs(params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
         }
+        
         
         
         res := <-e.exchange.FetchTradingFeesWs(decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) FetchTradingFee(symbol string, params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
         }
+        
         
         
         res := <-e.exchange.FetchTradingFee(symbol, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) FetchConvertCurrencies(params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
         }
+        
         
         
         res := <-e.exchange.FetchConvertCurrencies(decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) FetchFundingRate(symbol string, params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
         }
+        
         
         
         res := <-e.exchange.FetchFundingRate(symbol, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) FetchFundingInterval(symbol string, params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
         }
+        
         
         
         res := <-e.exchange.FetchFundingInterval(symbol, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) FetchMarkOHLCV(symbol string, timeframe string, params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
@@ -4421,6 +8202,8 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["since"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 since = f
+            } else {
+                since = v
             }
             delete(decoded, "since")
         }
@@ -4429,19 +8212,33 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["limit"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 limit = f
+            } else {
+                limit = v
             }
             delete(decoded, "limit")
         }
         
+        
         res := <-e.exchange.FetchMarkOHLCV(symbol, timeframe, since, limit, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) FetchIndexOHLCV(symbol string, timeframe string, params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
@@ -4451,6 +8248,8 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["since"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 since = f
+            } else {
+                since = v
             }
             delete(decoded, "since")
         }
@@ -4459,19 +8258,33 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["limit"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 limit = f
+            } else {
+                limit = v
             }
             delete(decoded, "limit")
         }
         
+        
         res := <-e.exchange.FetchIndexOHLCV(symbol, timeframe, since, limit, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) FetchPremiumIndexOHLCV(symbol string, timeframe string, params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
@@ -4481,6 +8294,8 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["since"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 since = f
+            } else {
+                since = v
             }
             delete(decoded, "since")
         }
@@ -4489,19 +8304,33 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["limit"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 limit = f
+            } else {
+                limit = v
             }
             delete(decoded, "limit")
         }
         
+        
         res := <-e.exchange.FetchPremiumIndexOHLCV(symbol, timeframe, since, limit, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) FetchTransactions(params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
@@ -4511,6 +8340,8 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["code"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 code = f
+            } else {
+                code = v
             }
             delete(decoded, "code")
         }
@@ -4519,6 +8350,8 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["since"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 since = f
+            } else {
+                since = v
             }
             delete(decoded, "since")
         }
@@ -4527,19 +8360,33 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["limit"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 limit = f
+            } else {
+                limit = v
             }
             delete(decoded, "limit")
         }
         
+        
         res := <-e.exchange.FetchTransactions(code, since, limit, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) FetchPositionHistory(symbol string, params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
@@ -4549,6 +8396,8 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["since"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 since = f
+            } else {
+                since = v
             }
             delete(decoded, "since")
         }
@@ -4557,19 +8406,33 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["limit"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 limit = f
+            } else {
+                limit = v
             }
             delete(decoded, "limit")
         }
         
+        
         res := <-e.exchange.FetchPositionHistory(symbol, since, limit, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) FetchPositionsHistory(params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
@@ -4579,6 +8442,8 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["symbols"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 symbols = f
+            } else {
+                symbols = v
             }
             delete(decoded, "symbols")
         }
@@ -4587,6 +8452,8 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["since"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 since = f
+            } else {
+                since = v
             }
             delete(decoded, "since")
         }
@@ -4595,19 +8462,33 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["limit"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 limit = f
+            } else {
+                limit = v
             }
             delete(decoded, "limit")
         }
         
+        
         res := <-e.exchange.FetchPositionsHistory(symbols, since, limit, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) FetchTransfer(id string, params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
@@ -4617,19 +8498,33 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["code"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 code = f
+            } else {
+                code = v
             }
             delete(decoded, "code")
         }
         
+        
         res := <-e.exchange.FetchTransfer(id, code, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }
 
     func (e *CCXTGoExchange) FetchTransfers(params []byte) ([]byte, error) {
+            
         var decoded map[string]interface{}
         if err := json.Unmarshal(params, &decoded); err != nil {
             return nil, err
@@ -4639,6 +8534,8 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["code"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 code = f
+            } else {
+                code = v
             }
             delete(decoded, "code")
         }
@@ -4647,6 +8544,8 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["since"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 since = f
+            } else {
+                since = v
             }
             delete(decoded, "since")
         }
@@ -4655,14 +8554,27 @@ func sanitise(v interface{}) interface{} {
         if v, ok := decoded["limit"]; ok && v != nil {
             if f, ok := v.([]interface{}); ok {
                 limit = f
+            } else {
+                limit = v
             }
             delete(decoded, "limit")
         }
         
+        
         res := <-e.exchange.FetchTransfers(code, since, limit, decoded)
-        if err, ok := res.(error); ok {
+        switch v := res.(type) {
+        case string:
+            if strings.HasPrefix(v, "panic:") {
+                return nil, fmt.Errorf("%s", v)
+            }
+        case error:
+            return nil, v
+        }
+        sanitised := sanitise(res) // deep copy; no in-place mutation
+        b, err := json.Marshal(sanitised)
+        if err != nil {
             return nil, err
         }
-        sanitised := sanitise(res)
-        return json.Marshal(sanitised)
+        return b, nil
+        
     }

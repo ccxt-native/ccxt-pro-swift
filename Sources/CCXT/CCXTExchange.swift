@@ -79,69 +79,102 @@ public class Exchange {
         case decoding(Error)    // genuine JSON-decoding problem
     }
     
-    private func decode(_ data: Data) throws -> Any {
-        // First, try to parse as JSON, the normal successful path
-        do {
-            return try JSONSerialization.jsonObject(with: data, options: [])
-        } catch {
-            // Not valid JSON -> might be a ccxt panic string. Check that format.
-            // Expected format (single-line, simplified):
-            //   "panic: ... [ccxtError]::[<ErrorClass>]::[<exchange> {\"code\":...,\"msg\":...}]\nStack:\n"
-            if let s = String(data: data, encoding: .utf8) {
-                // Try to extract the segment after the last "[ccxtError]::["
-                // Split by "::"- panic string delimeter
-                let segments = s.components(separatedBy: "::")
-                if segments.count >= 3,
-                   segments[0].contains("[ccxtError]") {
-                    // Example segments:
-                    //  [0] ...[ccxtError]
-                    //  [1] "[ExchangeError]"
-                    //  [2] "[bitget {\"code\":...}..."
-                    // Extract error type (remove brackets)
-                    let rawType = segments[1].trimmingCharacters(in: CharacterSet(charactersIn: "[]"))
+    private func decode(_ value: Any?) throws -> Any? {
+        guard let value = value else {
+            return nil
+        }
 
-                    // message embedded in a JSON object -> {"msg": ...}
-                    if let jsonStart = s.firstIndex(of: "{"),
-                       let jsonEnd = s[jsonStart...].firstIndex(of: "}") {
+        switch value {
+        case let data as Data:
+            // Quick check for literal boolean or null
+            if var s = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) {
+                if s == "true" { return true }
+                if s == "false" { return false }
+                if s == "null" { return nil }
 
-                        let jsonRange = jsonStart...jsonEnd
-                        var jsonSubstring = String(s[jsonRange])
-                        jsonSubstring = jsonSubstring.replacingOccurrences(of: "\\\"", with: "\"")
-
-                        if let jsonData = jsonSubstring.data(using: .utf8),
-                           let jsonObj = try? JSONSerialization.jsonObject(with: jsonData) as? [String: Any] {
-
-                            let message = (jsonObj["msg"] as? String) ??
-                                           (jsonObj["message"] as? String) ?? jsonSubstring
-
-                            if let errorClass = NSClassFromString("CCXTSwift.\(rawType)") as? BaseError.Type {
-                                throw errorClass.init(message)
-                            }
-                            throw CCXTError.exchange(message)
-                        }
-                    }
-
-                    // plain message wrapped in brackets, take last segment
-                    let tail = segments.last ?? ""
-                    var plainMsg = tail.replacingOccurrences(
-                                      of: "]\\nStack:\\n\"",  // literal ]\nStack:\n"
-                                      with: "")
-
-                    plainMsg = plainMsg.trimmingCharacters(
-                                   in: CharacterSet(charactersIn: "[]\"\n "))
-
-                    if let errorClass = NSClassFromString("CCXTSwift.\(rawType)") as? BaseError.Type {
-                        throw errorClass.init(plainMsg)
-                    }
-                    throw CCXTError.exchange(plainMsg)
-                }
-                // Could read as UTF-8 but not recognised panic format
-                throw CCXTError.exchange(s.trimmingCharacters(in: .whitespacesAndNewlines))
+                // Parse number-like strings
+                if let intVal = Int(s) { return intVal }
+                if let doubleVal = Double(s) { return doubleVal }
             }
-            // Still unknown binary payload
-            throw CCXTError.decoding(error)
+
+            do {
+                // Normal JSON parse
+                return try JSONSerialization.jsonObject(with: data, options: [])
+            } catch {
+                // CCXT panic parsing
+                if let s = String(data: data, encoding: .utf8), s.contains("[ccxtError]::[") {
+                    let segments = s.components(separatedBy: "::")
+                    if segments.count >= 3 {
+                        let rawType = segments[1].trimmingCharacters(in: CharacterSet(charactersIn: "[]"))
+                        if let jsonStart = s.firstIndex(of: "{"),
+                        let jsonEnd = s[jsonStart...].firstIndex(of: "}") {
+                            var jsonSubstring = String(s[jsonStart...jsonEnd])
+                            jsonSubstring = jsonSubstring.replacingOccurrences(of: "\\\"", with: "\"")
+                            if let jsonData = jsonSubstring.data(using: .utf8),
+                            let jsonObj = try? JSONSerialization.jsonObject(with: jsonData) as? [String: Any] {
+                                let message = (jsonObj["msg"] as? String) ??
+                                            (jsonObj["message"] as? String) ??
+                                            jsonSubstring
+                                if let errorClass = NSClassFromString("CCXTSwift.\(rawType)") as? BaseError.Type {
+                                    throw errorClass.init(message)
+                                }
+                                throw CCXTError.exchange(message)
+                            }
+                        }
+
+                        let tail = segments.last ?? ""
+                        var plainMsg = tail.replacingOccurrences(of: "]\\nStack:\\n\"", with: "")
+                        plainMsg = plainMsg.trimmingCharacters(in: CharacterSet(charactersIn: "[]\"\n "))
+
+                        if let errorClass = NSClassFromString("CCXTSwift.\(rawType)") as? BaseError.Type {
+                            throw errorClass.init(plainMsg)
+                        }
+                        throw CCXTError.exchange(plainMsg)
+                    }
+                }
+
+                // Non-panic string / invalid JSON
+                if var s = String(data: data, encoding: .utf8) {
+                    // Strip outer quotes and unescape
+                    if s.hasPrefix("\"") && s.hasSuffix("\"") {
+                        s.removeFirst()
+                        s.removeLast()
+                        s = s.replacingOccurrences(of: "\\\"", with: "\"")
+                        s = s.replacingOccurrences(of: "\\n", with: "\n")
+                    }
+                    if let intVal = Int(s) { return intVal }
+                    if let doubleVal = Double(s) { return doubleVal }
+                    return s
+                }
+
+                throw CCXTError.decoding(error)
+            }
+
+        case let str as String:
+            // Numeric conversion
+            if let intVal = Int(str) { return intVal }
+            if let doubleVal = Double(str) { return doubleVal }
+            return str
+
+        case let number as NSNumber:
+            if CFGetTypeID(number) == CFBooleanGetTypeID() {
+                return number.boolValue
+            } else if CFNumberIsFloatType(number) {
+                return number.doubleValue
+            } else {
+                return number.intValue
+            }
+
+        case let bool as Bool:
+            return bool
+
+        default:
+            return value
         }
     }
+
+
+
 
     // ------------------------------------------------------------------------
 
@@ -185,8 +218,866 @@ public class Exchange {
     // ------------------------------------------------------------------------
     // METHODS BELOW THIS LINE ARE TRANSPILED
 
+    public var isSandboxModeEnabled: Bool {
+        get {
+            let propValue = try? self.exchange.getIsSandboxModeEnabled()
+            let jsonObject = try! self.decode(propValue)
+            let cleaned = self.cleanAny(jsonObject)! as! Bool
+            return cleaned
+        }
+        set {
+            try? self.exchange.setIsSandboxModeEnabled(newValue as! Bool)
+        }
+    }
+
+    public var api: [String: Any] {
+        get {
+            let propValue = try? self.exchange.getApi()
+            let jsonObject = try! self.decode(propValue)
+            let cleaned = self.cleanAny(jsonObject)! as! [String: Any]
+            return cleaned
+        }
+        
+    }
+
+    public var userAgent: String? {
+        get {
+            let propValue = try? self.exchange.getUserAgent()
+            let jsonObject = try! self.decode(propValue)
+            let cleaned = self.cleanAny(jsonObject)! as! String?
+            return cleaned
+        }
+        set {
+            try? self.exchange.setUserAgent(newValue as! String)
+        }
+    }
+
+    public var userAgents: [String: String] {
+        get {
+            let propValue = try? self.exchange.getUserAgents()
+            let jsonObject = try! self.decode(propValue)
+            let cleaned = self.cleanAny(jsonObject)! as! [String: String]
+            return cleaned
+        }
+        set {
+            let serialized = try? JSONSerialization.data(withJSONObject: newValue)
+            try? self.exchange.setUserAgents(serialized)
+        }
+    }
+
+    public var returnResponseHeaders: Bool {
+        get {
+            let propValue = try? self.exchange.getReturnResponseHeaders()
+            let jsonObject = try! self.decode(propValue)
+            let cleaned = self.cleanAny(jsonObject)! as! Bool
+            return cleaned
+        }
+        set {
+            try? self.exchange.setReturnResponseHeaders(newValue as! Bool)
+        }
+    }
+
+    public var MAX_VALUE: Double {
+        get {
+            let propValue = try? self.exchange.getMAX_VALUE()
+            let jsonObject = try! self.decode(propValue)
+            let cleaned = self.cleanAny(jsonObject)! as! Double
+            return cleaned
+        }
+        set {
+            try? self.exchange.setMAX_VALUE(newValue as! Double)
+        }
+    }
+
+    public var substituteCommonCurrencyCodes: Bool {
+        get {
+            let propValue = try? self.exchange.getSubstituteCommonCurrencyCodes()
+            let jsonObject = try! self.decode(propValue)
+            let cleaned = self.cleanAny(jsonObject)! as! Bool
+            return cleaned
+        }
+        set {
+            try? self.exchange.setSubstituteCommonCurrencyCodes(newValue as! Bool)
+        }
+    }
+
+    public var reduceFees: Bool {
+        get {
+            let propValue = try? self.exchange.getReduceFees()
+            let jsonObject = try! self.decode(propValue)
+            let cleaned = self.cleanAny(jsonObject)! as! Bool
+            return cleaned
+        }
+        set {
+            try? self.exchange.setReduceFees(newValue as! Bool)
+        }
+    }
+
+    public func setTimeout(newValue: Int64) {
+        try? self.exchange.setTimeout(newValue as! Int64)
+    }
+
+    public func setVerbose(newValue: Bool) {
+        try? self.exchange.setVerbose(newValue as! Bool)
+    }
+
+    public func setTwofa(newValue: String) {
+        try? self.exchange.setTwofa(newValue as! String)
+    }
+
+    public var balance: Any {
+        get {
+            let propValue = try? self.exchange.getBalance()
+            let jsonObject = try! self.decode(propValue)
+            let cleaned = self.cleanAny(jsonObject)! as! Any
+            return cleaned
+        }
+        set {
+            let serialized = try? JSONSerialization.data(withJSONObject: newValue)
+            try? self.exchange.setBalance(serialized)
+        }
+    }
+
+    public var liquidations: [String: [String: Any]] {
+        get {
+            let propValue = try? self.exchange.getLiquidations()
+            let jsonObject = try! self.decode(propValue)
+            let cleaned = self.cleanAny(jsonObject)! as! [String: [String: Any]]
+            return cleaned
+        }
+        set {
+            let serialized = try? JSONSerialization.data(withJSONObject: newValue)
+            try? self.exchange.setLiquidations(serialized)
+        }
+    }
+
+    public var orderbooks: [String: [String: Any]] {
+        get {
+            let propValue = try? self.exchange.getOrderbooks()
+            let jsonObject = try! self.decode(propValue)
+            let cleaned = self.cleanAny(jsonObject)! as! [String: [String: Any]]
+            return cleaned
+        }
+        set {
+            let serialized = try? JSONSerialization.data(withJSONObject: newValue)
+            try? self.exchange.setOrderbooks(serialized)
+        }
+    }
+
+    public var tickers: [String: [String: Any]] {
+        get {
+            let propValue = try? self.exchange.getTickers()
+            let jsonObject = try! self.decode(propValue)
+            let cleaned = self.cleanAny(jsonObject)! as! [String: [String: Any]]
+            return cleaned
+        }
+        set {
+            let serialized = try? JSONSerialization.data(withJSONObject: newValue)
+            try? self.exchange.setTickers(serialized)
+        }
+    }
+
+    public var fundingRates: [String: [String: Any]] {
+        get {
+            let propValue = try? self.exchange.getFundingRates()
+            let jsonObject = try! self.decode(propValue)
+            let cleaned = self.cleanAny(jsonObject)! as! [String: [String: Any]]
+            return cleaned
+        }
+        set {
+            let serialized = try? JSONSerialization.data(withJSONObject: newValue)
+            try? self.exchange.setFundingRates(serialized)
+        }
+    }
+
+    public var bidsasks: [String: [String: Any]] {
+        get {
+            let propValue = try? self.exchange.getBidsasks()
+            let jsonObject = try! self.decode(propValue)
+            let cleaned = self.cleanAny(jsonObject)! as! [String: [String: Any]]
+            return cleaned
+        }
+        set {
+            let serialized = try? JSONSerialization.data(withJSONObject: newValue)
+            try? self.exchange.setBidsasks(serialized)
+        }
+    }
+
+    public var orders: Any {
+        get {
+            let propValue = try? self.exchange.getOrders()
+            let jsonObject = try! self.decode(propValue)
+            let cleaned = self.cleanAny(jsonObject)! as! Any
+            return cleaned
+        }
+        set {
+            let serialized = try? JSONSerialization.data(withJSONObject: newValue)
+            try? self.exchange.setOrders(serialized)
+        }
+    }
+
+    public var triggerOrders: Any {
+        get {
+            let propValue = try? self.exchange.getTriggerOrders()
+            let jsonObject = try! self.decode(propValue)
+            let cleaned = self.cleanAny(jsonObject)! as! Any
+            return cleaned
+        }
+        set {
+            let serialized = try? JSONSerialization.data(withJSONObject: newValue)
+            try? self.exchange.setTriggerOrders(serialized)
+        }
+    }
+
+    public var transactions: [String: [String: Any]] {
+        get {
+            let propValue = try? self.exchange.getTransactions()
+            let jsonObject = try! self.decode(propValue)
+            let cleaned = self.cleanAny(jsonObject)! as! [String: [String: Any]]
+            return cleaned
+        }
+        set {
+            let serialized = try? JSONSerialization.data(withJSONObject: newValue)
+            try? self.exchange.setTransactions(serialized)
+        }
+    }
+
+    public var myLiquidations: [String: [String: Any]] {
+        get {
+            let propValue = try? self.exchange.getMyLiquidations()
+            let jsonObject = try! self.decode(propValue)
+            let cleaned = self.cleanAny(jsonObject)! as! [String: [String: Any]]
+            return cleaned
+        }
+        set {
+            let serialized = try? JSONSerialization.data(withJSONObject: newValue)
+            try? self.exchange.setMyLiquidations(serialized)
+        }
+    }
+
+    public var precision: [String: Any]? {
+        get {
+            let propValue = try? self.exchange.getPrecision()
+            let jsonObject = try! self.decode(propValue)
+            let cleaned = self.cleanAny(jsonObject)! as! [String: Any]?
+            return cleaned
+        }
+        set {
+            let serialized = try? JSONSerialization.data(withJSONObject: newValue)
+            try? self.exchange.setPrecision(serialized)
+        }
+    }
+
+    public var last_http_response: Any {
+        get {
+            let propValue = try? self.exchange.getLast_http_response()
+            let jsonObject = try! self.decode(propValue)
+            let cleaned = self.cleanAny(jsonObject)! as! Any
+            return cleaned
+        }
+        set {
+            let serialized = try? JSONSerialization.data(withJSONObject: newValue)
+            try? self.exchange.setLast_http_response(serialized)
+        }
+    }
+
+    public var last_request_headers: [String: String] {
+        get {
+            let propValue = try? self.exchange.getLast_request_headers()
+            let jsonObject = try! self.decode(propValue)
+            let cleaned = self.cleanAny(jsonObject)! as! [String: String]
+            return cleaned
+        }
+        
+    }
+
+    public var last_request_body: Any {
+        get {
+            let propValue = try? self.exchange.getLast_request_body()
+            let jsonObject = try! self.decode(propValue)
+            let cleaned = self.cleanAny(jsonObject)! as! Any
+            return cleaned
+        }
+        
+    }
+
+    public var last_request_url: String {
+        get {
+            let propValue = try? self.exchange.getLast_request_url()
+            let jsonObject = try! self.decode(propValue)
+            let cleaned = self.cleanAny(jsonObject)! as! String
+            return cleaned
+        }
+        
+    }
+
+    public var lastRequestBody: Any {
+        get {
+            let propValue = try? self.exchange.getLastRequestBody()
+            let jsonObject = try! self.decode(propValue)
+            let cleaned = self.cleanAny(jsonObject)! as! Any
+            return cleaned
+        }
+        set {
+            let serialized = try? JSONSerialization.data(withJSONObject: newValue)
+            try? self.exchange.setLastRequestBody(serialized)
+        }
+    }
+
+    public var lastRequestUrl: String {
+        get {
+            let propValue = try? self.exchange.getLastRequestUrl()
+            let jsonObject = try! self.decode(propValue)
+            let cleaned = self.cleanAny(jsonObject)! as! String
+            return cleaned
+        }
+        set {
+            try? self.exchange.setLastRequestUrl(newValue as! String)
+        }
+    }
+
+    public var id: String {
+        get {
+            let propValue = try? self.exchange.getId()
+            let jsonObject = try! self.decode(propValue)
+            let cleaned = self.cleanAny(jsonObject)! as! String
+            return cleaned
+        }
+        
+    }
+
+    public var markets: [String: Any] {
+        get {
+            let propValue = try? self.exchange.getMarkets()
+            let jsonObject = try! self.decode(propValue)
+            let cleaned = self.cleanAny(jsonObject)! as! [String: Any]
+            return cleaned
+        }
+        
+    }
+
+    public var features: [String: [String: Any]] {
+        get {
+            let propValue = try? self.exchange.getFeatures()
+            let jsonObject = try! self.decode(propValue)
+            let cleaned = self.cleanAny(jsonObject)! as! [String: [String: Any]]
+            return cleaned
+        }
+        
+    }
+
+    public var rateLimit: Double {
+        get {
+            let propValue = try? self.exchange.getRateLimit()
+            let jsonObject = try! self.decode(propValue)
+            let cleaned = self.cleanAny(jsonObject)! as! Double
+            return cleaned
+        }
+        set {
+            try? self.exchange.setRateLimit(newValue as! Double)
+        }
+    }
+
+    public var tokenBucket: [String: Double] {
+        get {
+            let propValue = try? self.exchange.getTokenBucket()
+            let jsonObject = try! self.decode(propValue)
+            let cleaned = self.cleanAny(jsonObject)! as! [String: Double]
+            return cleaned
+        }
+        set {
+            let serialized = try? JSONSerialization.data(withJSONObject: newValue)
+            try? self.exchange.setTokenBucket(serialized)
+        }
+    }
+
+    public var throttler: Any {
+        get {
+            let propValue = try? self.exchange.getThrottler()
+            let jsonObject = try! self.decode(propValue)
+            let cleaned = self.cleanAny(jsonObject)! as! Any
+            return cleaned
+        }
+        set {
+            let serialized = try? JSONSerialization.data(withJSONObject: newValue)
+            try? self.exchange.setThrottler(serialized)
+        }
+    }
+
+    public func setEnableRateLimit(newValue: Bool) {
+        try? self.exchange.setEnableRateLimit(newValue as! Bool)
+    }
+
+    public var httpExceptions: [String: Any] {
+        get {
+            let propValue = try? self.exchange.getHttpExceptions()
+            let jsonObject = try! self.decode(propValue)
+            let cleaned = self.cleanAny(jsonObject)! as! [String: Any]
+            return cleaned
+        }
+        set {
+            let serialized = try? JSONSerialization.data(withJSONObject: newValue)
+            try? self.exchange.setHttpExceptions(serialized)
+        }
+    }
+
+    public var limits: [String: Any]? {
+        get {
+            let propValue = try? self.exchange.getLimits()
+            let jsonObject = try! self.decode(propValue)
+            let cleaned = self.cleanAny(jsonObject)! as! [String: Any]?
+            return cleaned
+        }
+        set {
+            let serialized = try? JSONSerialization.data(withJSONObject: newValue)
+            try? self.exchange.setLimits(serialized)
+        }
+    }
+
+    public var markets_by_id: [String: Any] {
+        get {
+            let propValue = try? self.exchange.getMarkets_by_id()
+            let jsonObject = try! self.decode(propValue)
+            let cleaned = self.cleanAny(jsonObject)! as! [String: Any]
+            return cleaned
+        }
+        set {
+            let serialized = try? JSONSerialization.data(withJSONObject: newValue)
+            try? self.exchange.setMarkets_by_id(serialized)
+        }
+    }
+
+    public var symbols: Strings {
+        get {
+            let propValue = try? self.exchange.getSymbols()
+            let jsonObject = try! self.decode(propValue)
+            let cleaned = self.cleanAny(jsonObject)! as! Strings
+            return cleaned
+        }
+        
+    }
+
+    public var ids: Strings {
+        get {
+            let propValue = try? self.exchange.getIds()
+            let jsonObject = try! self.decode(propValue)
+            let cleaned = self.cleanAny(jsonObject)! as! Strings
+            return cleaned
+        }
+        set {
+            let serialized = try? JSONSerialization.data(withJSONObject: newValue)
+            try? self.exchange.setIds(serialized)
+        }
+    }
+
+    public var currencies: [String: Any] {
+        get {
+            let propValue = try? self.exchange.getCurrencies()
+            let jsonObject = try! self.decode(propValue)
+            let cleaned = self.cleanAny(jsonObject)! as! [String: Any]
+            return cleaned
+        }
+        set {
+            let serialized = try? JSONSerialization.data(withJSONObject: newValue)
+            try? self.exchange.setCurrencies(serialized)
+        }
+    }
+
+    public var baseCurrencies: [String: [String: Any]] {
+        get {
+            let propValue = try? self.exchange.getBaseCurrencies()
+            let jsonObject = try! self.decode(propValue)
+            let cleaned = self.cleanAny(jsonObject)! as! [String: [String: Any]]
+            return cleaned
+        }
+        set {
+            let serialized = try? JSONSerialization.data(withJSONObject: newValue)
+            try? self.exchange.setBaseCurrencies(serialized)
+        }
+    }
+
+    public var quoteCurrencies: [String: [String: Any]] {
+        get {
+            let propValue = try? self.exchange.getQuoteCurrencies()
+            let jsonObject = try! self.decode(propValue)
+            let cleaned = self.cleanAny(jsonObject)! as! [String: [String: Any]]
+            return cleaned
+        }
+        set {
+            let serialized = try? JSONSerialization.data(withJSONObject: newValue)
+            try? self.exchange.setQuoteCurrencies(serialized)
+        }
+    }
+
+    public var currencies_by_id: [String: [String: Any]] {
+        get {
+            let propValue = try? self.exchange.getCurrencies_by_id()
+            let jsonObject = try! self.decode(propValue)
+            let cleaned = self.cleanAny(jsonObject)! as! [String: [String: Any]]
+            return cleaned
+        }
+        set {
+            let serialized = try? JSONSerialization.data(withJSONObject: newValue)
+            try? self.exchange.setCurrencies_by_id(serialized)
+        }
+    }
+
+    public var codes: Strings {
+        get {
+            let propValue = try? self.exchange.getCodes()
+            let jsonObject = try! self.decode(propValue)
+            let cleaned = self.cleanAny(jsonObject)! as! Strings
+            return cleaned
+        }
+        set {
+            let serialized = try? JSONSerialization.data(withJSONObject: newValue)
+            try? self.exchange.setCodes(serialized)
+        }
+    }
+
+    public func setAccounts(newValue: [[String: Any]]) {
+        let serialized = try? JSONSerialization.data(withJSONObject: newValue)
+        try? self.exchange.setAccounts(serialized)
+    }
+
+    public var accountsById: [String: [String: Any]] {
+        get {
+            let propValue = try? self.exchange.getAccountsById()
+            let jsonObject = try! self.decode(propValue)
+            let cleaned = self.cleanAny(jsonObject)! as! [String: [String: Any]]
+            return cleaned
+        }
+        set {
+            let serialized = try? JSONSerialization.data(withJSONObject: newValue)
+            try? self.exchange.setAccountsById(serialized)
+        }
+    }
+
+    public var commonCurrencies: [String: String] {
+        get {
+            let propValue = try? self.exchange.getCommonCurrencies()
+            let jsonObject = try! self.decode(propValue)
+            let cleaned = self.cleanAny(jsonObject)! as! [String: String]
+            return cleaned
+        }
+        set {
+            let serialized = try? JSONSerialization.data(withJSONObject: newValue)
+            try? self.exchange.setCommonCurrencies(serialized)
+        }
+    }
+
+    public var hostname: String? {
+        get {
+            let propValue = try? self.exchange.getHostname()
+            let jsonObject = try! self.decode(propValue)
+            let cleaned = self.cleanAny(jsonObject)! as! String?
+            return cleaned
+        }
+        
+    }
+
+    public var exceptions: [String: String] {
+        get {
+            let propValue = try? self.exchange.getExceptions()
+            let jsonObject = try! self.decode(propValue)
+            let cleaned = self.cleanAny(jsonObject)! as! [String: String]
+            return cleaned
+        }
+        set {
+            let serialized = try? JSONSerialization.data(withJSONObject: newValue)
+            try? self.exchange.setExceptions(serialized)
+        }
+    }
+
+    public var timeframes: Any {
+        get {
+            let propValue = try? self.exchange.getTimeframes()
+            let jsonObject = try! self.decode(propValue)
+            let cleaned = self.cleanAny(jsonObject)! as! Any
+            return cleaned
+        }
+        
+    }
+
+    public var version: String? {
+        get {
+            let propValue = try? self.exchange.getVersion()
+            let jsonObject = try! self.decode(propValue)
+            let cleaned = self.cleanAny(jsonObject)! as! String?
+            return cleaned
+        }
+        
+    }
+
+    public var name: String? {
+        get {
+            let propValue = try? self.exchange.getName()
+            let jsonObject = try! self.decode(propValue)
+            let cleaned = self.cleanAny(jsonObject)! as! String?
+            return cleaned
+        }
+        set {
+            try? self.exchange.setName(newValue as! String)
+        }
+    }
+
+    public var httpProxyAgentModule: Any {
+        get {
+            let propValue = try? self.exchange.getHttpProxyAgentModule()
+            let jsonObject = try! self.decode(propValue)
+            let cleaned = self.cleanAny(jsonObject)! as! Any
+            return cleaned
+        }
+        set {
+            let serialized = try? JSONSerialization.data(withJSONObject: newValue)
+            try? self.exchange.setHttpProxyAgentModule(serialized)
+        }
+    }
+
+    public var httpsProxyAgentModule: Any {
+        get {
+            let propValue = try? self.exchange.getHttpsProxyAgentModule()
+            let jsonObject = try! self.decode(propValue)
+            let cleaned = self.cleanAny(jsonObject)! as! Any
+            return cleaned
+        }
+        set {
+            let serialized = try? JSONSerialization.data(withJSONObject: newValue)
+            try? self.exchange.setHttpsProxyAgentModule(serialized)
+        }
+    }
+
+    public var socksProxyAgentModule: Any {
+        get {
+            let propValue = try? self.exchange.getSocksProxyAgentModule()
+            let jsonObject = try! self.decode(propValue)
+            let cleaned = self.cleanAny(jsonObject)! as! Any
+            return cleaned
+        }
+        set {
+            let serialized = try? JSONSerialization.data(withJSONObject: newValue)
+            try? self.exchange.setSocksProxyAgentModule(serialized)
+        }
+    }
+
+    public var socksProxyAgentModuleChecked: Bool {
+        get {
+            let propValue = try? self.exchange.getSocksProxyAgentModuleChecked()
+            let jsonObject = try! self.decode(propValue)
+            let cleaned = self.cleanAny(jsonObject)! as! Bool
+            return cleaned
+        }
+        set {
+            try? self.exchange.setSocksProxyAgentModuleChecked(newValue as! Bool)
+        }
+    }
+
+    public var proxyDictionaries: [String: Any] {
+        get {
+            let propValue = try? self.exchange.getProxyDictionaries()
+            let jsonObject = try! self.decode(propValue)
+            let cleaned = self.cleanAny(jsonObject)! as! [String: Any]
+            return cleaned
+        }
+        set {
+            let serialized = try? JSONSerialization.data(withJSONObject: newValue)
+            try? self.exchange.setProxyDictionaries(serialized)
+        }
+    }
+
+    public var alias: Bool {
+        get {
+            let propValue = try? self.exchange.getAlias()
+            let jsonObject = try! self.decode(propValue)
+            let cleaned = self.cleanAny(jsonObject)! as! Bool
+            return cleaned
+        }
+        
+    }
+
+    public var clients: [String: Any] {
+        get {
+            let propValue = try? self.exchange.getClients()
+            let jsonObject = try! self.decode(propValue)
+            let cleaned = self.cleanAny(jsonObject)! as! [String: Any]
+            return cleaned
+        }
+        set {
+            let serialized = try? JSONSerialization.data(withJSONObject: newValue)
+            try? self.exchange.setClients(serialized)
+        }
+    }
+
+    public var newUpdates: Bool {
+        get {
+            let propValue = try? self.exchange.getNewUpdates()
+            let jsonObject = try! self.decode(propValue)
+            let cleaned = self.cleanAny(jsonObject)! as! Bool
+            return cleaned
+        }
+        set {
+            try? self.exchange.setNewUpdates(newValue as! Bool)
+        }
+    }
+
+    public var options: [String: Any] {
+        get {
+            let propValue = try? self.exchange.getOptions()
+            let jsonObject = try! self.decode(propValue)
+            let cleaned = self.cleanAny(jsonObject)! as! [String: Any]
+            return cleaned
+        }
+        set {
+            let serialized = try? JSONSerialization.data(withJSONObject: newValue)
+            try? self.exchange.setOptions(serialized)
+        }
+    }
+
+    public func setApiKey(newValue: String) {
+        try? self.exchange.setApiKey(newValue as! String)
+    }
+
+    public func setSecret(newValue: String) {
+        try? self.exchange.setSecret(newValue as! String)
+    }
+
+    public func setUid(newValue: String) {
+        try? self.exchange.setUid(newValue as! String)
+    }
+
+    public var login: String {
+        get {
+            let propValue = try? self.exchange.getLogin()
+            let jsonObject = try! self.decode(propValue)
+            let cleaned = self.cleanAny(jsonObject)! as! String
+            return cleaned
+        }
+        set {
+            try? self.exchange.setLogin(newValue as! String)
+        }
+    }
+
+    public func setPassword(newValue: String) {
+        try? self.exchange.setPassword(newValue as! String)
+    }
+
+    public func setPrivateKey(newValue: String) {
+        try? self.exchange.setPrivateKey(newValue as! String)
+    }
+
+    public func setWalletAddress(newValue: String) {
+        try? self.exchange.setWalletAddress(newValue as! String)
+    }
+
+    public var token: String {
+        get {
+            let propValue = try? self.exchange.getToken()
+            let jsonObject = try! self.decode(propValue)
+            let cleaned = self.cleanAny(jsonObject)! as! String
+            return cleaned
+        }
+        set {
+            try? self.exchange.setToken(newValue as! String)
+        }
+    }
+
+    public var trades: [String: Any] {
+        get {
+            let propValue = try? self.exchange.getTrades()
+            let jsonObject = try! self.decode(propValue)
+            let cleaned = self.cleanAny(jsonObject)! as! [String: Any]
+            return cleaned
+        }
+        set {
+            let serialized = try? JSONSerialization.data(withJSONObject: newValue)
+            try? self.exchange.setTrades(serialized)
+        }
+    }
+
+    public var ohlcvs: [String: [String: Any]] {
+        get {
+            let propValue = try? self.exchange.getOhlcvs()
+            let jsonObject = try! self.decode(propValue)
+            let cleaned = self.cleanAny(jsonObject)! as! [String: [String: Any]]
+            return cleaned
+        }
+        set {
+            let serialized = try? JSONSerialization.data(withJSONObject: newValue)
+            try? self.exchange.setOhlcvs(serialized)
+        }
+    }
+
+    public var myTrades: Any {
+        get {
+            let propValue = try? self.exchange.getMyTrades()
+            let jsonObject = try! self.decode(propValue)
+            let cleaned = self.cleanAny(jsonObject)! as! Any
+            return cleaned
+        }
+        set {
+            let serialized = try? JSONSerialization.data(withJSONObject: newValue)
+            try? self.exchange.setMyTrades(serialized)
+        }
+    }
+
+    public var positions: Any {
+        get {
+            let propValue = try? self.exchange.getPositions()
+            let jsonObject = try! self.decode(propValue)
+            let cleaned = self.cleanAny(jsonObject)! as! Any
+            return cleaned
+        }
+        set {
+            let serialized = try? JSONSerialization.data(withJSONObject: newValue)
+            try? self.exchange.setPositions(serialized)
+        }
+    }
+
+    public var has: Any {
+        get {
+            let propValue = try? self.exchange.getHas()
+            let jsonObject = try! self.decode(propValue)
+            let cleaned = self.cleanAny(jsonObject)! as! Any
+            return cleaned
+        }
+        
+    }
+
+    public var urls: [String: Any] {
+        get {
+            let propValue = try? self.exchange.getUrls()
+            let jsonObject = try! self.decode(propValue)
+            let cleaned = self.cleanAny(jsonObject)! as! [String: Any]
+            return cleaned
+        }
+        
+    }
+
+    public var requiredCredentials: [String: Any] {
+        get {
+            let propValue = try? self.exchange.getRequiredCredentials()
+            let jsonObject = try! self.decode(propValue)
+            let cleaned = self.cleanAny(jsonObject)! as! [String: Any]
+            return cleaned
+        }
+        
+    }
+
+    public var fees: [String: Any] {
+        get {
+            let propValue = try? self.exchange.getFees()
+            let jsonObject = try! self.decode(propValue)
+            let cleaned = self.cleanAny(jsonObject)! as! [String: Any]
+            return cleaned
+        }
+        set {
+            let serialized = try? JSONSerialization.data(withJSONObject: newValue)
+            try? self.exchange.setFees(serialized)
+        }
+    }
+
     public func loadMarkets (reload: Bool = false, params: [String: Any] = [:]) async throws -> [String: [String: Any]] {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[String: [String: Any]], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
                     let paramsData = try? JSONSerialization.data(withJSONObject: params)
@@ -207,7 +1098,7 @@ public class Exchange {
 
 
     public func fetchCurrencies (params: [String: Any] = [:]) async throws -> [String: [String: Any]] {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[String: [String: Any]], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
                     let paramsData = try? JSONSerialization.data(withJSONObject: params)
@@ -228,7 +1119,7 @@ public class Exchange {
 
 
     public func fetchMarkets (params: [String: Any] = [:]) async throws -> [[String: Any]] {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[[String: Any]], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
                     let paramsData = try? JSONSerialization.data(withJSONObject: params)
@@ -248,8 +1139,16 @@ public class Exchange {
     }
 
 
+    public func setSandboxMode (enabled: Bool) throws -> Void {
+        
+                    
+                    try self.exchange.setSandboxMode(enabled)
+                
+    }
+
+
     public func fetchAccounts (params: [String: Any] = [:]) async throws -> [[String: Any]] {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[[String: Any]], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
                     let paramsData = try? JSONSerialization.data(withJSONObject: params)
@@ -270,7 +1169,7 @@ public class Exchange {
 
 
     public func fetchTrades (symbol: String, since: Int? = nil, limit: Int? = nil, params: [String: Any] = [:]) async throws -> [[String: Any]] {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[[String: Any]], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
 					var paramsCopy: [String: Any] = params
@@ -294,7 +1193,7 @@ public class Exchange {
 
 
     public func fetchTradesWs (symbol: String, since: Int? = nil, limit: Int? = nil, params: [String: Any] = [:]) async throws -> [[String: Any]] {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[[String: Any]], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
 					var paramsCopy: [String: Any] = params
@@ -318,7 +1217,7 @@ public class Exchange {
 
 
     public func watchLiquidations (symbol: String, since: Int? = nil, limit: Int? = nil, params: [String: Any] = [:]) async throws -> [[String: Any]] {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[[String: Any]], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
 					var paramsCopy: [String: Any] = params
@@ -342,7 +1241,7 @@ public class Exchange {
 
 
     public func watchLiquidationsForSymbols (symbols: [String], since: Int? = nil, limit: Int? = nil, params: [String: Any] = [:]) async throws -> [[String: Any]] {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[[String: Any]], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
 					var paramsCopy: [String: Any] = params
@@ -367,7 +1266,7 @@ public class Exchange {
 
 
     public func watchMyLiquidations (symbol: String, since: Int? = nil, limit: Int? = nil, params: [String: Any] = [:]) async throws -> [[String: Any]] {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[[String: Any]], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
 					var paramsCopy: [String: Any] = params
@@ -391,7 +1290,7 @@ public class Exchange {
 
 
     public func watchMyLiquidationsForSymbols (symbols: [String], since: Int? = nil, limit: Int? = nil, params: [String: Any] = [:]) async throws -> [[String: Any]] {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[[String: Any]], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
 					var paramsCopy: [String: Any] = params
@@ -416,7 +1315,7 @@ public class Exchange {
 
 
     public func watchTrades (symbol: String, since: Int? = nil, limit: Int? = nil, params: [String: Any] = [:]) async throws -> [[String: Any]] {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[[String: Any]], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
 					var paramsCopy: [String: Any] = params
@@ -440,7 +1339,7 @@ public class Exchange {
 
 
     public func unWatchOrders (symbol: String? = nil, params: [String: Any] = [:]) async throws -> Any {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Any, Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
 					var paramsCopy: [String: Any] = params
@@ -463,7 +1362,7 @@ public class Exchange {
 
 
     public func unWatchTrades (symbol: String, params: [String: Any] = [:]) async throws -> Any {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Any, Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
                     let paramsData = try? JSONSerialization.data(withJSONObject: params)
@@ -484,7 +1383,7 @@ public class Exchange {
 
 
     public func watchTradesForSymbols (symbols: [String], since: Int? = nil, limit: Int? = nil, params: [String: Any] = [:]) async throws -> [[String: Any]] {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[[String: Any]], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
 					var paramsCopy: [String: Any] = params
@@ -509,7 +1408,7 @@ public class Exchange {
 
 
     public func unWatchTradesForSymbols (symbols: [String], params: [String: Any] = [:]) async throws -> Any {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Any, Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
 					let symbols_string = symbols.joined(separator: ",")
@@ -531,7 +1430,7 @@ public class Exchange {
 
 
     public func watchOrdersForSymbols (symbols: [String], since: Int? = nil, limit: Int? = nil, params: [String: Any] = [:]) async throws -> [[String: Any]] {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[[String: Any]], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
 					var paramsCopy: [String: Any] = params
@@ -556,7 +1455,7 @@ public class Exchange {
 
 
     public func watchOrderBookForSymbols (symbols: [String], limit: Int? = nil, params: [String: Any] = [:]) async throws -> [String: Any] {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[String: Any], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
 					var paramsCopy: [String: Any] = params
@@ -580,7 +1479,7 @@ public class Exchange {
 
 
     public func unWatchOrderBookForSymbols (symbols: [String], params: [String: Any] = [:]) async throws -> Any {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Any, Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
 					let symbols_string = symbols.joined(separator: ",")
@@ -601,8 +1500,8 @@ public class Exchange {
     }
 
 
-    public func unWatchPositions (symbols: [String]? = nil, params: [String: Any] = [:]) async throws -> Any {
-        try await withCheckedThrowingContinuation { continuation in
+    public func unWatchPositions (symbols: Strings = nil, params: [String: Any] = [:]) async throws -> Any {
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Any, Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
 					var paramsCopy: [String: Any] = params
@@ -624,8 +1523,8 @@ public class Exchange {
     }
 
 
-    public func fetchDepositAddresses (codes: [String]? = nil, params: [String: Any] = [:]) async throws -> [[String: Any]] {
-        try await withCheckedThrowingContinuation { continuation in
+    public func fetchDepositAddresses (codes: Strings = nil, params: [String: Any] = [:]) async throws -> [[String: Any]] {
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[[String: Any]], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
 					var paramsCopy: [String: Any] = params
@@ -648,7 +1547,7 @@ public class Exchange {
 
 
     public func fetchOrderBook (symbol: String, limit: Int? = nil, params: [String: Any] = [:]) async throws -> [String: Any] {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[String: Any], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
 					var paramsCopy: [String: Any] = params
@@ -671,7 +1570,7 @@ public class Exchange {
 
 
     public func fetchOrderBookWs (symbol: String, limit: Int? = nil, params: [String: Any] = [:]) async throws -> [String: Any] {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[String: Any], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
 					var paramsCopy: [String: Any] = params
@@ -694,7 +1593,7 @@ public class Exchange {
 
 
     public func fetchMarginMode (symbol: String, params: [String: Any] = [:]) async throws -> [String: Any] {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[String: Any], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
                     let paramsData = try? JSONSerialization.data(withJSONObject: params)
@@ -714,8 +1613,8 @@ public class Exchange {
     }
 
 
-    public func fetchMarginModes (symbols: [String]? = nil, params: [String: Any] = [:]) async throws -> [String: [String: Any]] {
-        try await withCheckedThrowingContinuation { continuation in
+    public func fetchMarginModes (symbols: Strings = nil, params: [String: Any] = [:]) async throws -> [String: [String: Any]] {
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[String: [String: Any]], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
 					var paramsCopy: [String: Any] = params
@@ -738,7 +1637,7 @@ public class Exchange {
 
 
     public func watchOrderBook (symbol: String, limit: Int? = nil, params: [String: Any] = [:]) async throws -> [String: Any] {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[String: Any], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
 					var paramsCopy: [String: Any] = params
@@ -761,7 +1660,7 @@ public class Exchange {
 
 
     public func unWatchOrderBook (symbol: String, params: [String: Any] = [:]) async throws -> Any {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Any, Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
                     let paramsData = try? JSONSerialization.data(withJSONObject: params)
@@ -782,7 +1681,7 @@ public class Exchange {
 
 
     public func fetchTime (params: [String: Any] = [:]) async throws -> Int? {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Int?, Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
                     let paramsData = try? JSONSerialization.data(withJSONObject: params)
@@ -802,8 +1701,8 @@ public class Exchange {
     }
 
 
-    public func fetchTradingLimits (symbols: [String]? = nil, params: [String: Any] = [:]) async throws -> Any {
-        try await withCheckedThrowingContinuation { continuation in
+    public func fetchTradingLimits (symbols: Strings = nil, params: [String: Any] = [:]) async throws -> Any {
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Any, Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
 					var paramsCopy: [String: Any] = params
@@ -826,7 +1725,7 @@ public class Exchange {
 
 
     public func fetchCrossBorrowRates (params: [String: Any] = [:]) async throws -> [String: [String: Any]] {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[String: [String: Any]], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
                     let paramsData = try? JSONSerialization.data(withJSONObject: params)
@@ -847,7 +1746,7 @@ public class Exchange {
 
 
     public func fetchIsolatedBorrowRates (params: [String: Any] = [:]) async throws -> [String: [String: Any]] {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[String: [String: Any]], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
                     let paramsData = try? JSONSerialization.data(withJSONObject: params)
@@ -867,8 +1766,8 @@ public class Exchange {
     }
 
 
-    public func fetchLeverageTiers (symbols: [String]? = nil, params: [String: Any] = [:]) async throws -> [String: [[String: Any]]] {
-        try await withCheckedThrowingContinuation { continuation in
+    public func fetchLeverageTiers (symbols: Strings = nil, params: [String: Any] = [:]) async throws -> [String: [[String: Any]]] {
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[String: [[String: Any]]], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
 					var paramsCopy: [String: Any] = params
@@ -890,8 +1789,8 @@ public class Exchange {
     }
 
 
-    public func fetchFundingRates (symbols: [String]? = nil, params: [String: Any] = [:]) async throws -> [String: [String: Any]] {
-        try await withCheckedThrowingContinuation { continuation in
+    public func fetchFundingRates (symbols: Strings = nil, params: [String: Any] = [:]) async throws -> [String: [String: Any]] {
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[String: [String: Any]], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
 					var paramsCopy: [String: Any] = params
@@ -913,8 +1812,8 @@ public class Exchange {
     }
 
 
-    public func fetchFundingIntervals (symbols: [String]? = nil, params: [String: Any] = [:]) async throws -> [String: [String: Any]] {
-        try await withCheckedThrowingContinuation { continuation in
+    public func fetchFundingIntervals (symbols: Strings = nil, params: [String: Any] = [:]) async throws -> [String: [String: Any]] {
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[String: [String: Any]], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
 					var paramsCopy: [String: Any] = params
@@ -937,7 +1836,7 @@ public class Exchange {
 
 
     public func transfer (code: String, amount: Double, fromAccount: String, toAccount: String, params: [String: Any] = [:]) async throws -> [String: Any] {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[String: Any], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
                     let paramsData = try? JSONSerialization.data(withJSONObject: params)
@@ -958,7 +1857,7 @@ public class Exchange {
 
 
     public func withdraw (code: String, amount: Double, address: String, tag: String? = nil, params: [String: Any] = [:]) async throws -> [String: Any] {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[String: Any], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
 					var paramsCopy: [String: Any] = params
@@ -981,7 +1880,7 @@ public class Exchange {
 
 
     public func createDepositAddress (code: String, params: [String: Any] = [:]) async throws -> [String: Any] {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[String: Any], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
                     let paramsData = try? JSONSerialization.data(withJSONObject: params)
@@ -1002,7 +1901,7 @@ public class Exchange {
 
 
     public func setLeverage (leverage: Int, symbol: String? = nil, params: [String: Any] = [:]) async throws -> Any {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Any, Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
 					var paramsCopy: [String: Any] = params
@@ -1025,7 +1924,7 @@ public class Exchange {
 
 
     public func fetchLeverage (symbol: String, params: [String: Any] = [:]) async throws -> [String: Any] {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[String: Any], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
                     let paramsData = try? JSONSerialization.data(withJSONObject: params)
@@ -1045,8 +1944,8 @@ public class Exchange {
     }
 
 
-    public func fetchLeverages (symbols: [String]? = nil, params: [String: Any] = [:]) async throws -> [String: [String: Any]] {
-        try await withCheckedThrowingContinuation { continuation in
+    public func fetchLeverages (symbols: Strings = nil, params: [String: Any] = [:]) async throws -> [String: [String: Any]] {
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[String: [String: Any]], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
 					var paramsCopy: [String: Any] = params
@@ -1069,7 +1968,7 @@ public class Exchange {
 
 
     public func setPositionMode (hedged: Bool, symbol: String? = nil, params: [String: Any] = [:]) async throws -> Any {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Any, Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
 					var paramsCopy: [String: Any] = params
@@ -1092,7 +1991,7 @@ public class Exchange {
 
 
     public func addMargin (symbol: String, amount: Double, params: [String: Any] = [:]) async throws -> [String: Any] {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[String: Any], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
                     let paramsData = try? JSONSerialization.data(withJSONObject: params)
@@ -1113,7 +2012,7 @@ public class Exchange {
 
 
     public func reduceMargin (symbol: String, amount: Double, params: [String: Any] = [:]) async throws -> [String: Any] {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[String: Any], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
                     let paramsData = try? JSONSerialization.data(withJSONObject: params)
@@ -1134,7 +2033,7 @@ public class Exchange {
 
 
     public func setMargin (symbol: String, amount: Double, params: [String: Any] = [:]) async throws -> [String: Any] {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[String: Any], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
                     let paramsData = try? JSONSerialization.data(withJSONObject: params)
@@ -1155,7 +2054,7 @@ public class Exchange {
 
 
     public func fetchLongShortRatio (symbol: String, timeframe: String? = nil, params: [String: Any] = [:]) async throws -> [String: Any] {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[String: Any], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
 					var paramsCopy: [String: Any] = params
@@ -1178,7 +2077,7 @@ public class Exchange {
 
 
     public func fetchLongShortRatioHistory (symbol: String? = nil, timeframe: String? = nil, since: Int? = nil, limit: Int? = nil, params: [String: Any] = [:]) async throws -> [[String: Any]] {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[[String: Any]], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
 					var paramsCopy: [String: Any] = params
@@ -1204,7 +2103,7 @@ public class Exchange {
 
 
     public func fetchMarginAdjustmentHistory (symbol: String? = nil, type: String? = nil, since: Double? = nil, limit: Double? = nil, params: [String: Any] = [:]) async throws -> [[String: Any]] {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[[String: Any]], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
 					var paramsCopy: [String: Any] = params
@@ -1230,7 +2129,7 @@ public class Exchange {
 
 
     public func setMarginMode (marginMode: String, symbol: String? = nil, params: [String: Any] = [:]) async throws -> Any {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Any, Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
 					var paramsCopy: [String: Any] = params
@@ -1253,7 +2152,7 @@ public class Exchange {
 
 
     public func fetchDepositAddressesByNetwork (code: String, params: [String: Any] = [:]) async throws -> [[String: Any]] {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[[String: Any]], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
                     let paramsData = try? JSONSerialization.data(withJSONObject: params)
@@ -1274,7 +2173,7 @@ public class Exchange {
 
 
     public func fetchOpenInterestHistory (symbol: String, timeframe: String = "1h", since: Int? = nil, limit: Int? = nil, params: [String: Any] = [:]) async throws -> [[String: Any]] {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[[String: Any]], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
 					var paramsCopy: [String: Any] = params
@@ -1298,7 +2197,7 @@ public class Exchange {
 
 
     public func fetchOpenInterest (symbol: String, params: [String: Any] = [:]) async throws -> [String: Any] {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[String: Any], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
                     let paramsData = try? JSONSerialization.data(withJSONObject: params)
@@ -1318,8 +2217,8 @@ public class Exchange {
     }
 
 
-    public func fetchOpenInterests (symbols: [String]? = nil, params: [String: Any] = [:]) async throws -> [String: [String: Any]] {
-        try await withCheckedThrowingContinuation { continuation in
+    public func fetchOpenInterests (symbols: Strings = nil, params: [String: Any] = [:]) async throws -> [String: [String: Any]] {
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[String: [String: Any]], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
 					var paramsCopy: [String: Any] = params
@@ -1342,7 +2241,7 @@ public class Exchange {
 
 
     public func signIn (params: [String: Any] = [:]) async throws -> Any {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Any, Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
                     let paramsData = try? JSONSerialization.data(withJSONObject: params)
@@ -1363,7 +2262,7 @@ public class Exchange {
 
 
     public func fetchBorrowRate (code: String, amount: Double, params: [String: Any] = [:]) async throws -> Any {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Any, Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
                     let paramsData = try? JSONSerialization.data(withJSONObject: params)
@@ -1384,7 +2283,7 @@ public class Exchange {
 
 
     public func repayCrossMargin (code: String, amount: Double, params: [String: Any] = [:]) async throws -> Any {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Any, Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
                     let paramsData = try? JSONSerialization.data(withJSONObject: params)
@@ -1405,7 +2304,7 @@ public class Exchange {
 
 
     public func repayIsolatedMargin (symbol: String, code: String, amount: Double, params: [String: Any] = [:]) async throws -> Any {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Any, Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
                     let paramsData = try? JSONSerialization.data(withJSONObject: params)
@@ -1426,7 +2325,7 @@ public class Exchange {
 
 
     public func borrowCrossMargin (code: String, amount: Double, params: [String: Any] = [:]) async throws -> Any {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Any, Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
                     let paramsData = try? JSONSerialization.data(withJSONObject: params)
@@ -1447,7 +2346,7 @@ public class Exchange {
 
 
     public func borrowIsolatedMargin (symbol: String, code: String, amount: Double, params: [String: Any] = [:]) async throws -> Any {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Any, Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
                     let paramsData = try? JSONSerialization.data(withJSONObject: params)
@@ -1468,7 +2367,7 @@ public class Exchange {
 
 
     public func borrowMargin (code: String, amount: Double, symbol: String? = nil, params: [String: Any] = [:]) async throws -> Any {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Any, Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
 					var paramsCopy: [String: Any] = params
@@ -1491,7 +2390,7 @@ public class Exchange {
 
 
     public func fetchOHLCV (symbol: String, timeframe: String = "1m", since: Int? = nil, limit: Int? = nil, params: [String: Any] = [:]) async throws -> [[Double]] {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[[Double]], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
 					var paramsCopy: [String: Any] = params
@@ -1515,7 +2414,7 @@ public class Exchange {
 
 
     public func fetchOHLCVWs (symbol: String, timeframe: String = "1m", since: Int? = nil, limit: Int? = nil, params: [String: Any] = [:]) async throws -> [[Double]] {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[[Double]], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
 					var paramsCopy: [String: Any] = params
@@ -1539,7 +2438,7 @@ public class Exchange {
 
 
     public func watchOHLCV (symbol: String, timeframe: String = "1m", since: Int? = nil, limit: Int? = nil, params: [String: Any] = [:]) async throws -> [[Double]] {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[[Double]], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
 					var paramsCopy: [String: Any] = params
@@ -1562,8 +2461,8 @@ public class Exchange {
     }
 
 
-    public func fetchL2OrderBook (symbol: String, limit: Int? = nil, params: [String: Any] = [:]) async throws -> Any {
-        try await withCheckedThrowingContinuation { continuation in
+    public func fetchL2OrderBook (symbol: String, limit: Int? = nil, params: [String: Any] = [:]) async throws -> [String: Any] {
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[String: Any], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
 					var paramsCopy: [String: Any] = params
@@ -1573,7 +2472,7 @@ public class Exchange {
                     do {
                         let jsonObject = try self.decode(data)
                         let cleaned = self.cleanAny(jsonObject)
-                        continuation.resume(returning: cleaned as! Any)
+                        continuation.resume(returning: cleaned as! [String: Any])
                     } catch {
                         continuation.resume(throwing: error)
                     }
@@ -1585,8 +2484,8 @@ public class Exchange {
     }
 
 
-    public func editOrder (id: String, symbol: String, type: String, side: String?, amount: Double? = nil, price: Double? = nil, params: [String: Any] = [:]) async throws -> [String: Any] {
-        try await withCheckedThrowingContinuation { continuation in
+    public func editOrder (id: String, symbol: String, type: OrderType, side: OrderSide, amount: Double? = nil, price: Double? = nil, params: [String: Any] = [:]) async throws -> [String: Any] {
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[String: Any], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
 					var paramsCopy: [String: Any] = params
@@ -1609,8 +2508,8 @@ public class Exchange {
     }
 
 
-    public func editOrderWs (id: String, symbol: String, type: String, side: String?, amount: Double? = nil, price: Double? = nil, params: [String: Any] = [:]) async throws -> [String: Any] {
-        try await withCheckedThrowingContinuation { continuation in
+    public func editOrderWs (id: String, symbol: String, type: OrderType, side: OrderSide, amount: Double? = nil, price: Double? = nil, params: [String: Any] = [:]) async throws -> [String: Any] {
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[String: Any], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
 					var paramsCopy: [String: Any] = params
@@ -1634,7 +2533,7 @@ public class Exchange {
 
 
     public func fetchPosition (symbol: String, params: [String: Any] = [:]) async throws -> [String: Any] {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[String: Any], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
                     let paramsData = try? JSONSerialization.data(withJSONObject: params)
@@ -1655,7 +2554,7 @@ public class Exchange {
 
 
     public func fetchPositionWs (symbol: String, params: [String: Any] = [:]) async throws -> [[String: Any]] {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[[String: Any]], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
                     let paramsData = try? JSONSerialization.data(withJSONObject: params)
@@ -1676,7 +2575,7 @@ public class Exchange {
 
 
     public func watchPosition (symbol: String? = nil, params: [String: Any] = [:]) async throws -> [String: Any] {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[String: Any], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
 					var paramsCopy: [String: Any] = params
@@ -1698,8 +2597,8 @@ public class Exchange {
     }
 
 
-    public func watchPositions (symbols: [String]? = nil, since: Int? = nil, limit: Int? = nil, params: [String: Any] = [:]) async throws -> [[String: Any]] {
-        try await withCheckedThrowingContinuation { continuation in
+    public func watchPositions (symbols: Strings = nil, since: Int? = nil, limit: Int? = nil, params: [String: Any] = [:]) async throws -> [[String: Any]] {
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[[String: Any]], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
 					var paramsCopy: [String: Any] = params
@@ -1724,7 +2623,7 @@ public class Exchange {
 
 
     public func fetchPositionsForSymbol (symbol: String, params: [String: Any] = [:]) async throws -> [[String: Any]] {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[[String: Any]], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
                     let paramsData = try? JSONSerialization.data(withJSONObject: params)
@@ -1745,7 +2644,7 @@ public class Exchange {
 
 
     public func fetchPositionsForSymbolWs (symbol: String, params: [String: Any] = [:]) async throws -> [[String: Any]] {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[[String: Any]], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
                     let paramsData = try? JSONSerialization.data(withJSONObject: params)
@@ -1765,8 +2664,8 @@ public class Exchange {
     }
 
 
-    public func fetchPositions (symbols: [String]? = nil, params: [String: Any] = [:]) async throws -> [[String: Any]] {
-        try await withCheckedThrowingContinuation { continuation in
+    public func fetchPositions (symbols: Strings = nil, params: [String: Any] = [:]) async throws -> [[String: Any]] {
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[[String: Any]], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
 					var paramsCopy: [String: Any] = params
@@ -1788,8 +2687,8 @@ public class Exchange {
     }
 
 
-    public func fetchPositionsWs (symbols: [String]? = nil, params: [String: Any] = [:]) async throws -> [[String: Any]] {
-        try await withCheckedThrowingContinuation { continuation in
+    public func fetchPositionsWs (symbols: Strings = nil, params: [String: Any] = [:]) async throws -> [[String: Any]] {
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[[String: Any]], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
 					var paramsCopy: [String: Any] = params
@@ -1811,8 +2710,8 @@ public class Exchange {
     }
 
 
-    public func fetchPositionsRisk (symbols: [String]? = nil, params: [String: Any] = [:]) async throws -> [[String: Any]] {
-        try await withCheckedThrowingContinuation { continuation in
+    public func fetchPositionsRisk (symbols: Strings = nil, params: [String: Any] = [:]) async throws -> [[String: Any]] {
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[[String: Any]], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
 					var paramsCopy: [String: Any] = params
@@ -1834,8 +2733,8 @@ public class Exchange {
     }
 
 
-    public func fetchBidsAsks (symbols: [String]? = nil, params: [String: Any] = [:]) async throws -> [String: [String: Any]] {
-        try await withCheckedThrowingContinuation { continuation in
+    public func fetchBidsAsks (symbols: Strings = nil, params: [String: Any] = [:]) async throws -> [String: [String: Any]] {
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[String: [String: Any]], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
 					var paramsCopy: [String: Any] = params
@@ -1858,7 +2757,7 @@ public class Exchange {
 
 
     public func fetchBorrowInterest (code: String? = nil, symbol: String? = nil, since: Int? = nil, limit: Int? = nil, params: [String: Any] = [:]) async throws -> [[String: Any]] {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[[String: Any]], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
 					var paramsCopy: [String: Any] = params
@@ -1884,7 +2783,7 @@ public class Exchange {
 
 
     public func fetchLedger (code: String? = nil, since: Int? = nil, limit: Int? = nil, params: [String: Any] = [:]) async throws -> [[String: Any]] {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[[String: Any]], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
 					var paramsCopy: [String: Any] = params
@@ -1909,7 +2808,7 @@ public class Exchange {
 
 
     public func fetchLedgerEntry (id: String, code: String? = nil, params: [String: Any] = [:]) async throws -> [String: Any] {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[String: Any], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
 					var paramsCopy: [String: Any] = params
@@ -1932,7 +2831,7 @@ public class Exchange {
 
 
     public func fetchBalance (params: [String: Any] = [:]) async throws -> [String: Any] {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[String: Any], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
                     let paramsData = try? JSONSerialization.data(withJSONObject: params)
@@ -1953,7 +2852,7 @@ public class Exchange {
 
 
     public func fetchBalanceWs (params: [String: Any] = [:]) async throws -> [String: Any] {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[String: Any], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
                     let paramsData = try? JSONSerialization.data(withJSONObject: params)
@@ -1974,7 +2873,7 @@ public class Exchange {
 
 
     public func watchBalance (params: [String: Any] = [:]) async throws -> [String: Any] {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[String: Any], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
                     let paramsData = try? JSONSerialization.data(withJSONObject: params)
@@ -1995,7 +2894,7 @@ public class Exchange {
 
 
     public func fetchStatus (params: [String: Any] = [:]) async throws -> Any {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Any, Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
                     let paramsData = try? JSONSerialization.data(withJSONObject: params)
@@ -2016,7 +2915,7 @@ public class Exchange {
 
 
     public func fetchTransactionFee (code: String, params: [String: Any] = [:]) async throws -> Any {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Any, Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
                     let paramsData = try? JSONSerialization.data(withJSONObject: params)
@@ -2036,8 +2935,8 @@ public class Exchange {
     }
 
 
-    public func fetchTransactionFees (codes: [String]? = nil, params: [String: Any] = [:]) async throws -> Any {
-        try await withCheckedThrowingContinuation { continuation in
+    public func fetchTransactionFees (codes: Strings = nil, params: [String: Any] = [:]) async throws -> Any {
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Any, Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
 					var paramsCopy: [String: Any] = params
@@ -2059,31 +2958,8 @@ public class Exchange {
     }
 
 
-    public func fetchDepositWithdrawFees (codes: [String]? = nil, params: [String: Any] = [:]) async throws -> Any {
-        try await withCheckedThrowingContinuation { continuation in
-            DispatchQueue.global(qos: .userInitiated).async {
-                do {
-					var paramsCopy: [String: Any] = params
-					if (codes != nil) { paramsCopy["codes"] = codes }
-                    let paramsData = try? JSONSerialization.data(withJSONObject: paramsCopy)
-                    let data = try self.exchange.fetchDepositWithdrawFees(paramsData)
-                    do {
-                        let jsonObject = try self.decode(data)
-                        let cleaned = self.cleanAny(jsonObject)
-                        continuation.resume(returning: cleaned as! Any)
-                    } catch {
-                        continuation.resume(throwing: error)
-                    }
-                } catch {
-                    continuation.resume(throwing: error)
-                }
-            }
-        }
-    }
-
-
     public func fetchDepositWithdrawFee (code: String, params: [String: Any] = [:]) async throws -> Any {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Any, Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
                     let paramsData = try? JSONSerialization.data(withJSONObject: params)
@@ -2104,7 +2980,7 @@ public class Exchange {
 
 
     public func fetchCrossBorrowRate (code: String, params: [String: Any] = [:]) async throws -> [String: Any] {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[String: Any], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
                     let paramsData = try? JSONSerialization.data(withJSONObject: params)
@@ -2125,7 +3001,7 @@ public class Exchange {
 
 
     public func fetchIsolatedBorrowRate (symbol: String, params: [String: Any] = [:]) async throws -> [String: Any] {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[String: Any], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
                     let paramsData = try? JSONSerialization.data(withJSONObject: params)
@@ -2146,7 +3022,7 @@ public class Exchange {
 
 
     public func fetchTicker (symbol: String, params: [String: Any] = [:]) async throws -> [String: Any] {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[String: Any], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
                     let paramsData = try? JSONSerialization.data(withJSONObject: params)
@@ -2167,7 +3043,7 @@ public class Exchange {
 
 
     public func fetchTickerWs (symbol: String, params: [String: Any] = [:]) async throws -> [String: Any] {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[String: Any], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
                     let paramsData = try? JSONSerialization.data(withJSONObject: params)
@@ -2188,7 +3064,7 @@ public class Exchange {
 
 
     public func watchTicker (symbol: String, params: [String: Any] = [:]) async throws -> [String: Any] {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[String: Any], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
                     let paramsData = try? JSONSerialization.data(withJSONObject: params)
@@ -2208,8 +3084,8 @@ public class Exchange {
     }
 
 
-    public func fetchTickers (symbols: [String]? = nil, params: [String: Any] = [:]) async throws -> [String: [String: Any]] {
-        try await withCheckedThrowingContinuation { continuation in
+    public func fetchTickers (symbols: Strings = nil, params: [String: Any] = [:]) async throws -> [String: [String: Any]] {
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[String: [String: Any]], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
 					var paramsCopy: [String: Any] = params
@@ -2231,8 +3107,8 @@ public class Exchange {
     }
 
 
-    public func fetchMarkPrices (symbols: [String]? = nil, params: [String: Any] = [:]) async throws -> [String: [String: Any]] {
-        try await withCheckedThrowingContinuation { continuation in
+    public func fetchMarkPrices (symbols: Strings = nil, params: [String: Any] = [:]) async throws -> [String: [String: Any]] {
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[String: [String: Any]], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
 					var paramsCopy: [String: Any] = params
@@ -2254,8 +3130,8 @@ public class Exchange {
     }
 
 
-    public func fetchTickersWs (symbols: [String]? = nil, params: [String: Any] = [:]) async throws -> [String: [String: Any]] {
-        try await withCheckedThrowingContinuation { continuation in
+    public func fetchTickersWs (symbols: Strings = nil, params: [String: Any] = [:]) async throws -> [String: [String: Any]] {
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[String: [String: Any]], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
 					var paramsCopy: [String: Any] = params
@@ -2277,8 +3153,8 @@ public class Exchange {
     }
 
 
-    public func fetchOrderBooks (symbols: [String]? = nil, limit: Int? = nil, params: [String: Any] = [:]) async throws -> [String: [String: Any]] {
-        try await withCheckedThrowingContinuation { continuation in
+    public func fetchOrderBooks (symbols: Strings = nil, limit: Int? = nil, params: [String: Any] = [:]) async throws -> [String: [String: Any]] {
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[String: [String: Any]], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
 					var paramsCopy: [String: Any] = params
@@ -2301,8 +3177,8 @@ public class Exchange {
     }
 
 
-    public func watchBidsAsks (symbols: [String]? = nil, params: [String: Any] = [:]) async throws -> [String: [String: Any]] {
-        try await withCheckedThrowingContinuation { continuation in
+    public func watchBidsAsks (symbols: Strings = nil, params: [String: Any] = [:]) async throws -> [String: [String: Any]] {
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[String: [String: Any]], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
 					var paramsCopy: [String: Any] = params
@@ -2324,8 +3200,8 @@ public class Exchange {
     }
 
 
-    public func watchTickers (symbols: [String]? = nil, params: [String: Any] = [:]) async throws -> [String: [String: Any]] {
-        try await withCheckedThrowingContinuation { continuation in
+    public func watchTickers (symbols: Strings = nil, params: [String: Any] = [:]) async throws -> [String: [String: Any]] {
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[String: [String: Any]], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
 					var paramsCopy: [String: Any] = params
@@ -2347,8 +3223,8 @@ public class Exchange {
     }
 
 
-    public func unWatchTickers (symbols: [String]? = nil, params: [String: Any] = [:]) async throws -> Any {
-        try await withCheckedThrowingContinuation { continuation in
+    public func unWatchTickers (symbols: Strings = nil, params: [String: Any] = [:]) async throws -> Any {
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Any, Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
 					var paramsCopy: [String: Any] = params
@@ -2371,7 +3247,7 @@ public class Exchange {
 
 
     public func fetchOrder (id: String, symbol: String? = nil, params: [String: Any] = [:]) async throws -> [String: Any] {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[String: Any], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
 					var paramsCopy: [String: Any] = params
@@ -2394,7 +3270,7 @@ public class Exchange {
 
 
     public func fetchOrderWs (id: String, symbol: String? = nil, params: [String: Any] = [:]) async throws -> [String: Any] {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[String: Any], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
 					var paramsCopy: [String: Any] = params
@@ -2416,8 +3292,8 @@ public class Exchange {
     }
 
 
-    public func createOrder (symbol: String, type: String, side: String?, amount: Double, price: Double? = nil, params: [String: Any] = [:]) async throws -> [String: Any] {
-        try await withCheckedThrowingContinuation { continuation in
+    public func createOrder (symbol: String, type: OrderType, side: OrderSide, amount: Double, price: Double? = nil, params: [String: Any] = [:]) async throws -> [String: Any] {
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[String: Any], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
 					var paramsCopy: [String: Any] = params
@@ -2440,7 +3316,7 @@ public class Exchange {
 
 
     public func fetchConvertTrade (id: String, code: String? = nil, params: [String: Any] = [:]) async throws -> [String: Any] {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[String: Any], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
 					var paramsCopy: [String: Any] = params
@@ -2463,7 +3339,7 @@ public class Exchange {
 
 
     public func fetchConvertTradeHistory (code: String? = nil, since: Int? = nil, limit: Int? = nil, params: [String: Any] = [:]) async throws -> [[String: Any]] {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[[String: Any]], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
 					var paramsCopy: [String: Any] = params
@@ -2488,7 +3364,7 @@ public class Exchange {
 
 
     public func fetchPositionMode (symbol: String? = nil, params: [String: Any] = [:]) async throws -> Any {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Any, Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
 					var paramsCopy: [String: Any] = params
@@ -2510,8 +3386,8 @@ public class Exchange {
     }
 
 
-    public func createTrailingAmountOrder (symbol: String, type: String, side: String?, amount: Double, price: Double? = nil, trailingAmount: Double? = nil, trailingTriggerPrice: Double? = nil, params: [String: Any] = [:]) async throws -> [String: Any] {
-        try await withCheckedThrowingContinuation { continuation in
+    public func createTrailingAmountOrder (symbol: String, type: OrderType, side: OrderSide, amount: Double, price: Double? = nil, trailingAmount: Double? = nil, trailingTriggerPrice: Double? = nil, params: [String: Any] = [:]) async throws -> [String: Any] {
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[String: Any], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
 					var paramsCopy: [String: Any] = params
@@ -2535,8 +3411,8 @@ public class Exchange {
     }
 
 
-    public func createTrailingAmountOrderWs (symbol: String, type: String, side: String?, amount: Double, price: Double? = nil, trailingAmount: Double? = nil, trailingTriggerPrice: Double? = nil, params: [String: Any] = [:]) async throws -> [String: Any] {
-        try await withCheckedThrowingContinuation { continuation in
+    public func createTrailingAmountOrderWs (symbol: String, type: OrderType, side: OrderSide, amount: Double, price: Double? = nil, trailingAmount: Double? = nil, trailingTriggerPrice: Double? = nil, params: [String: Any] = [:]) async throws -> [String: Any] {
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[String: Any], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
 					var paramsCopy: [String: Any] = params
@@ -2560,8 +3436,8 @@ public class Exchange {
     }
 
 
-    public func createTrailingPercentOrder (symbol: String, type: String, side: String?, amount: Double, price: Double? = nil, trailingPercent: Double? = nil, trailingTriggerPrice: Double? = nil, params: [String: Any] = [:]) async throws -> [String: Any] {
-        try await withCheckedThrowingContinuation { continuation in
+    public func createTrailingPercentOrder (symbol: String, type: OrderType, side: OrderSide, amount: Double, price: Double? = nil, trailingPercent: Double? = nil, trailingTriggerPrice: Double? = nil, params: [String: Any] = [:]) async throws -> [String: Any] {
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[String: Any], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
 					var paramsCopy: [String: Any] = params
@@ -2585,8 +3461,8 @@ public class Exchange {
     }
 
 
-    public func createTrailingPercentOrderWs (symbol: String, type: String, side: String?, amount: Double, price: Double? = nil, trailingPercent: Double? = nil, trailingTriggerPrice: Double? = nil, params: [String: Any] = [:]) async throws -> [String: Any] {
-        try await withCheckedThrowingContinuation { continuation in
+    public func createTrailingPercentOrderWs (symbol: String, type: OrderType, side: OrderSide, amount: Double, price: Double? = nil, trailingPercent: Double? = nil, trailingTriggerPrice: Double? = nil, params: [String: Any] = [:]) async throws -> [String: Any] {
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[String: Any], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
 					var paramsCopy: [String: Any] = params
@@ -2610,8 +3486,8 @@ public class Exchange {
     }
 
 
-    public func createMarketOrderWithCost (symbol: String, side: String?, cost: Double, params: [String: Any] = [:]) async throws -> Any {
-        try await withCheckedThrowingContinuation { continuation in
+    public func createMarketOrderWithCost (symbol: String, side: OrderSide, cost: Double, params: [String: Any] = [:]) async throws -> [String: Any] {
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[String: Any], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
                     let paramsData = try? JSONSerialization.data(withJSONObject: params)
@@ -2619,7 +3495,7 @@ public class Exchange {
                     do {
                         let jsonObject = try self.decode(data)
                         let cleaned = self.cleanAny(jsonObject)
-                        continuation.resume(returning: cleaned as! Any)
+                        continuation.resume(returning: cleaned as! [String: Any])
                     } catch {
                         continuation.resume(throwing: error)
                     }
@@ -2632,7 +3508,7 @@ public class Exchange {
 
 
     public func createMarketBuyOrderWithCost (symbol: String, cost: Double, params: [String: Any] = [:]) async throws -> [String: Any] {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[String: Any], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
                     let paramsData = try? JSONSerialization.data(withJSONObject: params)
@@ -2653,7 +3529,7 @@ public class Exchange {
 
 
     public func createMarketSellOrderWithCost (symbol: String, cost: Double, params: [String: Any] = [:]) async throws -> [String: Any] {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[String: Any], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
                     let paramsData = try? JSONSerialization.data(withJSONObject: params)
@@ -2673,8 +3549,8 @@ public class Exchange {
     }
 
 
-    public func createMarketOrderWithCostWs (symbol: String, side: String?, cost: Double, params: [String: Any] = [:]) async throws -> Any {
-        try await withCheckedThrowingContinuation { continuation in
+    public func createMarketOrderWithCostWs (symbol: String, side: OrderSide, cost: Double, params: [String: Any] = [:]) async throws -> [String: Any] {
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[String: Any], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
                     let paramsData = try? JSONSerialization.data(withJSONObject: params)
@@ -2682,7 +3558,7 @@ public class Exchange {
                     do {
                         let jsonObject = try self.decode(data)
                         let cleaned = self.cleanAny(jsonObject)
-                        continuation.resume(returning: cleaned as! Any)
+                        continuation.resume(returning: cleaned as! [String: Any])
                     } catch {
                         continuation.resume(throwing: error)
                     }
@@ -2694,8 +3570,8 @@ public class Exchange {
     }
 
 
-    public func createTriggerOrder (symbol: String, type: String, side: String?, amount: Double, price: Double? = nil, triggerPrice: Double? = nil, params: [String: Any] = [:]) async throws -> [String: Any] {
-        try await withCheckedThrowingContinuation { continuation in
+    public func createTriggerOrder (symbol: String, type: OrderType, side: OrderSide, amount: Double, price: Double? = nil, triggerPrice: Double? = nil, params: [String: Any] = [:]) async throws -> [String: Any] {
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[String: Any], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
 					var paramsCopy: [String: Any] = params
@@ -2718,8 +3594,8 @@ public class Exchange {
     }
 
 
-    public func createTriggerOrderWs (symbol: String, type: String, side: String?, amount: Double, price: Double? = nil, triggerPrice: Double? = nil, params: [String: Any] = [:]) async throws -> [String: Any] {
-        try await withCheckedThrowingContinuation { continuation in
+    public func createTriggerOrderWs (symbol: String, type: OrderType, side: OrderSide, amount: Double, price: Double? = nil, triggerPrice: Double? = nil, params: [String: Any] = [:]) async throws -> [String: Any] {
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[String: Any], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
 					var paramsCopy: [String: Any] = params
@@ -2742,8 +3618,8 @@ public class Exchange {
     }
 
 
-    public func createStopLossOrder (symbol: String, type: String, side: String?, amount: Double, price: Double? = nil, stopLossPrice: Double? = nil, params: [String: Any] = [:]) async throws -> [String: Any] {
-        try await withCheckedThrowingContinuation { continuation in
+    public func createStopLossOrder (symbol: String, type: OrderType, side: OrderSide, amount: Double, price: Double? = nil, stopLossPrice: Double? = nil, params: [String: Any] = [:]) async throws -> [String: Any] {
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[String: Any], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
 					var paramsCopy: [String: Any] = params
@@ -2766,8 +3642,8 @@ public class Exchange {
     }
 
 
-    public func createStopLossOrderWs (symbol: String, type: String, side: String?, amount: Double, price: Double? = nil, stopLossPrice: Double? = nil, params: [String: Any] = [:]) async throws -> [String: Any] {
-        try await withCheckedThrowingContinuation { continuation in
+    public func createStopLossOrderWs (symbol: String, type: OrderType, side: OrderSide, amount: Double, price: Double? = nil, stopLossPrice: Double? = nil, params: [String: Any] = [:]) async throws -> [String: Any] {
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[String: Any], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
 					var paramsCopy: [String: Any] = params
@@ -2790,8 +3666,8 @@ public class Exchange {
     }
 
 
-    public func createTakeProfitOrder (symbol: String, type: String, side: String?, amount: Double, price: Double? = nil, takeProfitPrice: Double? = nil, params: [String: Any] = [:]) async throws -> [String: Any] {
-        try await withCheckedThrowingContinuation { continuation in
+    public func createTakeProfitOrder (symbol: String, type: OrderType, side: OrderSide, amount: Double, price: Double? = nil, takeProfitPrice: Double? = nil, params: [String: Any] = [:]) async throws -> [String: Any] {
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[String: Any], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
 					var paramsCopy: [String: Any] = params
@@ -2814,8 +3690,8 @@ public class Exchange {
     }
 
 
-    public func createTakeProfitOrderWs (symbol: String, type: String, side: String?, amount: Double, price: Double? = nil, takeProfitPrice: Double? = nil, params: [String: Any] = [:]) async throws -> [String: Any] {
-        try await withCheckedThrowingContinuation { continuation in
+    public func createTakeProfitOrderWs (symbol: String, type: OrderType, side: OrderSide, amount: Double, price: Double? = nil, takeProfitPrice: Double? = nil, params: [String: Any] = [:]) async throws -> [String: Any] {
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[String: Any], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
 					var paramsCopy: [String: Any] = params
@@ -2838,8 +3714,8 @@ public class Exchange {
     }
 
 
-    public func createOrderWithTakeProfitAndStopLoss (symbol: String, type: String, side: String?, amount: Double, price: Double? = nil, takeProfit: Double? = nil, stopLoss: Double? = nil, params: [String: Any] = [:]) async throws -> [String: Any] {
-        try await withCheckedThrowingContinuation { continuation in
+    public func createOrderWithTakeProfitAndStopLoss (symbol: String, type: OrderType, side: OrderSide, amount: Double, price: Double? = nil, takeProfit: Double? = nil, stopLoss: Double? = nil, params: [String: Any] = [:]) async throws -> [String: Any] {
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[String: Any], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
 					var paramsCopy: [String: Any] = params
@@ -2863,8 +3739,8 @@ public class Exchange {
     }
 
 
-    public func createOrderWithTakeProfitAndStopLossWs (symbol: String, type: String, side: String?, amount: Double, price: Double? = nil, takeProfit: Double? = nil, stopLoss: Double? = nil, params: [String: Any] = [:]) async throws -> [String: Any] {
-        try await withCheckedThrowingContinuation { continuation in
+    public func createOrderWithTakeProfitAndStopLossWs (symbol: String, type: OrderType, side: OrderSide, amount: Double, price: Double? = nil, takeProfit: Double? = nil, stopLoss: Double? = nil, params: [String: Any] = [:]) async throws -> [String: Any] {
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[String: Any], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
 					var paramsCopy: [String: Any] = params
@@ -2888,8 +3764,8 @@ public class Exchange {
     }
 
 
-    public func createOrderWs (symbol: String, type: String, side: String?, amount: Double, price: Double? = nil, params: [String: Any] = [:]) async throws -> [String: Any] {
-        try await withCheckedThrowingContinuation { continuation in
+    public func createOrderWs (symbol: String, type: OrderType, side: OrderSide, amount: Double, price: Double? = nil, params: [String: Any] = [:]) async throws -> [String: Any] {
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[String: Any], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
 					var paramsCopy: [String: Any] = params
@@ -2912,7 +3788,7 @@ public class Exchange {
 
 
     public func cancelOrder (id: String, symbol: String? = nil, params: [String: Any] = [:]) async throws -> [String: Any] {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[String: Any], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
 					var paramsCopy: [String: Any] = params
@@ -2935,7 +3811,7 @@ public class Exchange {
 
 
     public func cancelOrderWs (id: String, symbol: String? = nil, params: [String: Any] = [:]) async throws -> Any {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Any, Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
 					var paramsCopy: [String: Any] = params
@@ -2958,7 +3834,7 @@ public class Exchange {
 
 
     public func cancelOrdersWs (ids: [String], symbol: String? = nil, params: [String: Any] = [:]) async throws -> Any {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Any, Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
 					var paramsCopy: [String: Any] = params
@@ -2982,7 +3858,7 @@ public class Exchange {
 
 
     public func cancelAllOrders (symbol: String? = nil, params: [String: Any] = [:]) async throws -> [[String: Any]] {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[[String: Any]], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
 					var paramsCopy: [String: Any] = params
@@ -3005,7 +3881,7 @@ public class Exchange {
 
 
     public func cancelAllOrdersWs (symbol: String? = nil, params: [String: Any] = [:]) async throws -> Any {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Any, Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
 					var paramsCopy: [String: Any] = params
@@ -3028,7 +3904,7 @@ public class Exchange {
 
 
     public func fetchOrders (symbol: String? = nil, since: Int? = nil, limit: Int? = nil, params: [String: Any] = [:]) async throws -> [[String: Any]] {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[[String: Any]], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
 					var paramsCopy: [String: Any] = params
@@ -3053,7 +3929,7 @@ public class Exchange {
 
 
     public func fetchOrdersWs (symbol: String? = nil, since: Int? = nil, limit: Int? = nil, params: [String: Any] = [:]) async throws -> [[String: Any]] {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[[String: Any]], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
 					var paramsCopy: [String: Any] = params
@@ -3078,7 +3954,7 @@ public class Exchange {
 
 
     public func fetchOrderTrades (id: String, symbol: String? = nil, since: Int? = nil, limit: Int? = nil, params: [String: Any] = [:]) async throws -> [[String: Any]] {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[[String: Any]], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
 					var paramsCopy: [String: Any] = params
@@ -3103,7 +3979,7 @@ public class Exchange {
 
 
     public func watchOrders (symbol: String? = nil, since: Int? = nil, limit: Int? = nil, params: [String: Any] = [:]) async throws -> [[String: Any]] {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[[String: Any]], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
 					var paramsCopy: [String: Any] = params
@@ -3128,7 +4004,7 @@ public class Exchange {
 
 
     public func fetchOpenOrders (symbol: String? = nil, since: Int? = nil, limit: Int? = nil, params: [String: Any] = [:]) async throws -> [[String: Any]] {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[[String: Any]], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
 					var paramsCopy: [String: Any] = params
@@ -3153,7 +4029,7 @@ public class Exchange {
 
 
     public func fetchOpenOrdersWs (symbol: String? = nil, since: Int? = nil, limit: Int? = nil, params: [String: Any] = [:]) async throws -> [[String: Any]] {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[[String: Any]], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
 					var paramsCopy: [String: Any] = params
@@ -3178,7 +4054,7 @@ public class Exchange {
 
 
     public func fetchClosedOrders (symbol: String? = nil, since: Int? = nil, limit: Int? = nil, params: [String: Any] = [:]) async throws -> [[String: Any]] {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[[String: Any]], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
 					var paramsCopy: [String: Any] = params
@@ -3203,7 +4079,7 @@ public class Exchange {
 
 
     public func fetchCanceledAndClosedOrders (symbol: String? = nil, since: Int? = nil, limit: Int? = nil, params: [String: Any] = [:]) async throws -> [[String: Any]] {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[[String: Any]], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
 					var paramsCopy: [String: Any] = params
@@ -3228,7 +4104,7 @@ public class Exchange {
 
 
     public func fetchClosedOrdersWs (symbol: String? = nil, since: Int? = nil, limit: Int? = nil, params: [String: Any] = [:]) async throws -> [[String: Any]] {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[[String: Any]], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
 					var paramsCopy: [String: Any] = params
@@ -3253,7 +4129,7 @@ public class Exchange {
 
 
     public func fetchMyTrades (symbol: String? = nil, since: Int? = nil, limit: Int? = nil, params: [String: Any] = [:]) async throws -> [[String: Any]] {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[[String: Any]], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
 					var paramsCopy: [String: Any] = params
@@ -3278,7 +4154,7 @@ public class Exchange {
 
 
     public func fetchMyLiquidations (symbol: String? = nil, since: Int? = nil, limit: Int? = nil, params: [String: Any] = [:]) async throws -> [[String: Any]] {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[[String: Any]], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
 					var paramsCopy: [String: Any] = params
@@ -3303,7 +4179,7 @@ public class Exchange {
 
 
     public func fetchLiquidations (symbol: String, since: Int? = nil, limit: Int? = nil, params: [String: Any] = [:]) async throws -> [[String: Any]] {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[[String: Any]], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
 					var paramsCopy: [String: Any] = params
@@ -3327,7 +4203,7 @@ public class Exchange {
 
 
     public func fetchMyTradesWs (symbol: String? = nil, since: Int? = nil, limit: Int? = nil, params: [String: Any] = [:]) async throws -> [[String: Any]] {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[[String: Any]], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
 					var paramsCopy: [String: Any] = params
@@ -3352,7 +4228,7 @@ public class Exchange {
 
 
     public func watchMyTrades (symbol: String? = nil, since: Int? = nil, limit: Int? = nil, params: [String: Any] = [:]) async throws -> [[String: Any]] {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[[String: Any]], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
 					var paramsCopy: [String: Any] = params
@@ -3377,7 +4253,7 @@ public class Exchange {
 
 
     public func fetchGreeks (symbol: String, params: [String: Any] = [:]) async throws -> [String: Any] {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[String: Any], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
                     let paramsData = try? JSONSerialization.data(withJSONObject: params)
@@ -3398,7 +4274,7 @@ public class Exchange {
 
 
     public func fetchOptionChain (code: String, params: [String: Any] = [:]) async throws -> [String: [String: Any]] {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[String: [String: Any]], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
                     let paramsData = try? JSONSerialization.data(withJSONObject: params)
@@ -3419,7 +4295,7 @@ public class Exchange {
 
 
     public func fetchOption (symbol: String, params: [String: Any] = [:]) async throws -> [String: Any] {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[String: Any], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
                     let paramsData = try? JSONSerialization.data(withJSONObject: params)
@@ -3440,7 +4316,7 @@ public class Exchange {
 
 
     public func fetchConvertQuote (fromCode: String, toCode: String, amount: Double? = nil, params: [String: Any] = [:]) async throws -> [String: Any] {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[String: Any], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
 					var paramsCopy: [String: Any] = params
@@ -3463,7 +4339,7 @@ public class Exchange {
 
 
     public func fetchDepositsWithdrawals (code: String? = nil, since: Int? = nil, limit: Int? = nil, params: [String: Any] = [:]) async throws -> [[String: Any]] {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[[String: Any]], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
 					var paramsCopy: [String: Any] = params
@@ -3488,7 +4364,7 @@ public class Exchange {
 
 
     public func fetchDeposits (code: String? = nil, since: Int? = nil, limit: Int? = nil, params: [String: Any] = [:]) async throws -> [[String: Any]] {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[[String: Any]], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
 					var paramsCopy: [String: Any] = params
@@ -3513,7 +4389,7 @@ public class Exchange {
 
 
     public func fetchWithdrawals (code: String? = nil, since: Int? = nil, limit: Int? = nil, params: [String: Any] = [:]) async throws -> [[String: Any]] {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[[String: Any]], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
 					var paramsCopy: [String: Any] = params
@@ -3538,7 +4414,7 @@ public class Exchange {
 
 
     public func fetchDepositsWs (code: String? = nil, since: Int? = nil, limit: Int? = nil, params: [String: Any] = [:]) async throws -> Any {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Any, Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
 					var paramsCopy: [String: Any] = params
@@ -3563,7 +4439,7 @@ public class Exchange {
 
 
     public func fetchWithdrawalsWs (code: String? = nil, since: Int? = nil, limit: Int? = nil, params: [String: Any] = [:]) async throws -> Any {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Any, Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
 					var paramsCopy: [String: Any] = params
@@ -3588,7 +4464,7 @@ public class Exchange {
 
 
     public func fetchFundingRateHistory (symbol: String? = nil, since: Int? = nil, limit: Int? = nil, params: [String: Any] = [:]) async throws -> [[String: Any]] {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[[String: Any]], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
 					var paramsCopy: [String: Any] = params
@@ -3613,7 +4489,7 @@ public class Exchange {
 
 
     public func fetchFundingHistory (symbol: String? = nil, since: Int? = nil, limit: Int? = nil, params: [String: Any] = [:]) async throws -> [[String: Any]] {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[[String: Any]], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
 					var paramsCopy: [String: Any] = params
@@ -3637,8 +4513,8 @@ public class Exchange {
     }
 
 
-    public func closePosition (symbol: String, side: String? = nil, params: [String: Any] = [:]) async throws -> [String: Any] {
-        try await withCheckedThrowingContinuation { continuation in
+    public func closePosition (symbol: String, side: OrderSide = nil, params: [String: Any] = [:]) async throws -> [String: Any] {
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[String: Any], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
 					var paramsCopy: [String: Any] = params
@@ -3661,7 +4537,7 @@ public class Exchange {
 
 
     public func closeAllPositions (params: [String: Any] = [:]) async throws -> [[String: Any]] {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[[String: Any]], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
                     let paramsData = try? JSONSerialization.data(withJSONObject: params)
@@ -3682,7 +4558,7 @@ public class Exchange {
 
 
     public func fetchL3OrderBook (symbol: String, limit: Int? = nil, params: [String: Any] = [:]) async throws -> [String: Any] {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[String: Any], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
 					var paramsCopy: [String: Any] = params
@@ -3705,7 +4581,7 @@ public class Exchange {
 
 
     public func fetchDepositAddress (code: String, params: [String: Any] = [:]) async throws -> [String: Any] {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[String: Any], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
                     let paramsData = try? JSONSerialization.data(withJSONObject: params)
@@ -3725,8 +4601,8 @@ public class Exchange {
     }
 
 
-    public func createLimitOrder (symbol: String, side: String?, amount: Double, price: Double, params: [String: Any] = [:]) async throws -> [String: Any] {
-        try await withCheckedThrowingContinuation { continuation in
+    public func createLimitOrder (symbol: String, side: OrderSide, amount: Double, price: Double, params: [String: Any] = [:]) async throws -> [String: Any] {
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[String: Any], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
                     let paramsData = try? JSONSerialization.data(withJSONObject: params)
@@ -3746,8 +4622,8 @@ public class Exchange {
     }
 
 
-    public func createLimitOrderWs (symbol: String, side: String?, amount: Double, price: Double, params: [String: Any] = [:]) async throws -> [String: Any] {
-        try await withCheckedThrowingContinuation { continuation in
+    public func createLimitOrderWs (symbol: String, side: OrderSide, amount: Double, price: Double, params: [String: Any] = [:]) async throws -> [String: Any] {
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[String: Any], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
                     let paramsData = try? JSONSerialization.data(withJSONObject: params)
@@ -3767,8 +4643,8 @@ public class Exchange {
     }
 
 
-    public func createMarketOrder (symbol: String, side: String?, amount: Double, price: Double? = nil, params: [String: Any] = [:]) async throws -> [String: Any] {
-        try await withCheckedThrowingContinuation { continuation in
+    public func createMarketOrder (symbol: String, side: OrderSide, amount: Double, price: Double? = nil, params: [String: Any] = [:]) async throws -> [String: Any] {
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[String: Any], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
 					var paramsCopy: [String: Any] = params
@@ -3790,8 +4666,8 @@ public class Exchange {
     }
 
 
-    public func createMarketOrderWs (symbol: String, side: String?, amount: Double, price: Double? = nil, params: [String: Any] = [:]) async throws -> [String: Any] {
-        try await withCheckedThrowingContinuation { continuation in
+    public func createMarketOrderWs (symbol: String, side: OrderSide, amount: Double, price: Double? = nil, params: [String: Any] = [:]) async throws -> [String: Any] {
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[String: Any], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
 					var paramsCopy: [String: Any] = params
@@ -3814,7 +4690,7 @@ public class Exchange {
 
 
     public func createLimitBuyOrder (symbol: String, amount: Double, price: Double, params: [String: Any] = [:]) async throws -> [String: Any] {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[String: Any], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
                     let paramsData = try? JSONSerialization.data(withJSONObject: params)
@@ -3835,7 +4711,7 @@ public class Exchange {
 
 
     public func createLimitBuyOrderWs (symbol: String, amount: Double, price: Double, params: [String: Any] = [:]) async throws -> [String: Any] {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[String: Any], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
                     let paramsData = try? JSONSerialization.data(withJSONObject: params)
@@ -3856,7 +4732,7 @@ public class Exchange {
 
 
     public func createLimitSellOrder (symbol: String, amount: Double, price: Double, params: [String: Any] = [:]) async throws -> [String: Any] {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[String: Any], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
                     let paramsData = try? JSONSerialization.data(withJSONObject: params)
@@ -3877,7 +4753,7 @@ public class Exchange {
 
 
     public func createLimitSellOrderWs (symbol: String, amount: Double, price: Double, params: [String: Any] = [:]) async throws -> [String: Any] {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[String: Any], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
                     let paramsData = try? JSONSerialization.data(withJSONObject: params)
@@ -3898,7 +4774,7 @@ public class Exchange {
 
 
     public func createMarketBuyOrder (symbol: String, amount: Double, params: [String: Any] = [:]) async throws -> [String: Any] {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[String: Any], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
                     let paramsData = try? JSONSerialization.data(withJSONObject: params)
@@ -3919,7 +4795,7 @@ public class Exchange {
 
 
     public func createMarketBuyOrderWs (symbol: String, amount: Double, params: [String: Any] = [:]) async throws -> [String: Any] {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[String: Any], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
                     let paramsData = try? JSONSerialization.data(withJSONObject: params)
@@ -3940,7 +4816,7 @@ public class Exchange {
 
 
     public func createMarketSellOrder (symbol: String, amount: Double, params: [String: Any] = [:]) async throws -> [String: Any] {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[String: Any], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
                     let paramsData = try? JSONSerialization.data(withJSONObject: params)
@@ -3961,7 +4837,7 @@ public class Exchange {
 
 
     public func createMarketSellOrderWs (symbol: String, amount: Double, params: [String: Any] = [:]) async throws -> [String: Any] {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[String: Any], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
                     let paramsData = try? JSONSerialization.data(withJSONObject: params)
@@ -3982,7 +4858,7 @@ public class Exchange {
 
 
     public func fetchMarketLeverageTiers (symbol: String, params: [String: Any] = [:]) async throws -> [[String: Any]] {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[[String: Any]], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
                     let paramsData = try? JSONSerialization.data(withJSONObject: params)
@@ -4002,8 +4878,8 @@ public class Exchange {
     }
 
 
-    public func createPostOnlyOrder (symbol: String, type: String, side: String?, amount: Double, price: Double? = nil, params: [String: Any] = [:]) async throws -> Any {
-        try await withCheckedThrowingContinuation { continuation in
+    public func createPostOnlyOrder (symbol: String, type: OrderType, side: OrderSide, amount: Double, price: Double? = nil, params: [String: Any] = [:]) async throws -> [String: Any] {
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[String: Any], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
 					var paramsCopy: [String: Any] = params
@@ -4013,7 +4889,7 @@ public class Exchange {
                     do {
                         let jsonObject = try self.decode(data)
                         let cleaned = self.cleanAny(jsonObject)
-                        continuation.resume(returning: cleaned as! Any)
+                        continuation.resume(returning: cleaned as! [String: Any])
                     } catch {
                         continuation.resume(throwing: error)
                     }
@@ -4025,8 +4901,8 @@ public class Exchange {
     }
 
 
-    public func createPostOnlyOrderWs (symbol: String, type: String, side: String?, amount: Double, price: Double? = nil, params: [String: Any] = [:]) async throws -> Any {
-        try await withCheckedThrowingContinuation { continuation in
+    public func createPostOnlyOrderWs (symbol: String, type: OrderType, side: OrderSide, amount: Double, price: Double? = nil, params: [String: Any] = [:]) async throws -> [String: Any] {
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[String: Any], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
 					var paramsCopy: [String: Any] = params
@@ -4036,7 +4912,7 @@ public class Exchange {
                     do {
                         let jsonObject = try self.decode(data)
                         let cleaned = self.cleanAny(jsonObject)
-                        continuation.resume(returning: cleaned as! Any)
+                        continuation.resume(returning: cleaned as! [String: Any])
                     } catch {
                         continuation.resume(throwing: error)
                     }
@@ -4048,8 +4924,8 @@ public class Exchange {
     }
 
 
-    public func createReduceOnlyOrder (symbol: String, type: String, side: String?, amount: Double, price: Double? = nil, params: [String: Any] = [:]) async throws -> Any {
-        try await withCheckedThrowingContinuation { continuation in
+    public func createReduceOnlyOrder (symbol: String, type: OrderType, side: OrderSide, amount: Double, price: Double? = nil, params: [String: Any] = [:]) async throws -> [String: Any] {
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[String: Any], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
 					var paramsCopy: [String: Any] = params
@@ -4059,7 +4935,7 @@ public class Exchange {
                     do {
                         let jsonObject = try self.decode(data)
                         let cleaned = self.cleanAny(jsonObject)
-                        continuation.resume(returning: cleaned as! Any)
+                        continuation.resume(returning: cleaned as! [String: Any])
                     } catch {
                         continuation.resume(throwing: error)
                     }
@@ -4071,8 +4947,8 @@ public class Exchange {
     }
 
 
-    public func createReduceOnlyOrderWs (symbol: String, type: String, side: String?, amount: Double, price: Double? = nil, params: [String: Any] = [:]) async throws -> Any {
-        try await withCheckedThrowingContinuation { continuation in
+    public func createReduceOnlyOrderWs (symbol: String, type: OrderType, side: OrderSide, amount: Double, price: Double? = nil, params: [String: Any] = [:]) async throws -> [String: Any] {
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[String: Any], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
 					var paramsCopy: [String: Any] = params
@@ -4082,7 +4958,7 @@ public class Exchange {
                     do {
                         let jsonObject = try self.decode(data)
                         let cleaned = self.cleanAny(jsonObject)
-                        continuation.resume(returning: cleaned as! Any)
+                        continuation.resume(returning: cleaned as! [String: Any])
                     } catch {
                         continuation.resume(throwing: error)
                     }
@@ -4094,8 +4970,8 @@ public class Exchange {
     }
 
 
-    public func createStopOrder (symbol: String, type: String, side: String?, amount: Double, price: Double? = nil, triggerPrice: Double? = nil, params: [String: Any] = [:]) async throws -> Any {
-        try await withCheckedThrowingContinuation { continuation in
+    public func createStopOrder (symbol: String, type: OrderType, side: OrderSide, amount: Double, price: Double? = nil, triggerPrice: Double? = nil, params: [String: Any] = [:]) async throws -> [String: Any] {
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[String: Any], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
 					var paramsCopy: [String: Any] = params
@@ -4106,7 +4982,7 @@ public class Exchange {
                     do {
                         let jsonObject = try self.decode(data)
                         let cleaned = self.cleanAny(jsonObject)
-                        continuation.resume(returning: cleaned as! Any)
+                        continuation.resume(returning: cleaned as! [String: Any])
                     } catch {
                         continuation.resume(throwing: error)
                     }
@@ -4118,8 +4994,8 @@ public class Exchange {
     }
 
 
-    public func createStopOrderWs (symbol: String, type: String, side: String?, amount: Double, price: Double? = nil, triggerPrice: Double? = nil, params: [String: Any] = [:]) async throws -> Any {
-        try await withCheckedThrowingContinuation { continuation in
+    public func createStopOrderWs (symbol: String, type: OrderType, side: OrderSide, amount: Double, price: Double? = nil, triggerPrice: Double? = nil, params: [String: Any] = [:]) async throws -> [String: Any] {
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[String: Any], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
 					var paramsCopy: [String: Any] = params
@@ -4130,7 +5006,7 @@ public class Exchange {
                     do {
                         let jsonObject = try self.decode(data)
                         let cleaned = self.cleanAny(jsonObject)
-                        continuation.resume(returning: cleaned as! Any)
+                        continuation.resume(returning: cleaned as! [String: Any])
                     } catch {
                         continuation.resume(throwing: error)
                     }
@@ -4142,8 +5018,8 @@ public class Exchange {
     }
 
 
-    public func createStopLimitOrder (symbol: String, side: String?, amount: Double, price: Double, triggerPrice: Double, params: [String: Any] = [:]) async throws -> Any {
-        try await withCheckedThrowingContinuation { continuation in
+    public func createStopLimitOrder (symbol: String, side: OrderSide, amount: Double, price: Double, triggerPrice: Double, params: [String: Any] = [:]) async throws -> [String: Any] {
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[String: Any], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
                     let paramsData = try? JSONSerialization.data(withJSONObject: params)
@@ -4151,7 +5027,7 @@ public class Exchange {
                     do {
                         let jsonObject = try self.decode(data)
                         let cleaned = self.cleanAny(jsonObject)
-                        continuation.resume(returning: cleaned as! Any)
+                        continuation.resume(returning: cleaned as! [String: Any])
                     } catch {
                         continuation.resume(throwing: error)
                     }
@@ -4163,8 +5039,8 @@ public class Exchange {
     }
 
 
-    public func createStopLimitOrderWs (symbol: String, side: String?, amount: Double, price: Double, triggerPrice: Double, params: [String: Any] = [:]) async throws -> Any {
-        try await withCheckedThrowingContinuation { continuation in
+    public func createStopLimitOrderWs (symbol: String, side: OrderSide, amount: Double, price: Double, triggerPrice: Double, params: [String: Any] = [:]) async throws -> [String: Any] {
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[String: Any], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
                     let paramsData = try? JSONSerialization.data(withJSONObject: params)
@@ -4172,7 +5048,7 @@ public class Exchange {
                     do {
                         let jsonObject = try self.decode(data)
                         let cleaned = self.cleanAny(jsonObject)
-                        continuation.resume(returning: cleaned as! Any)
+                        continuation.resume(returning: cleaned as! [String: Any])
                     } catch {
                         continuation.resume(throwing: error)
                     }
@@ -4184,8 +5060,8 @@ public class Exchange {
     }
 
 
-    public func createStopMarketOrder (symbol: String, side: String?, amount: Double, triggerPrice: Double, params: [String: Any] = [:]) async throws -> Any {
-        try await withCheckedThrowingContinuation { continuation in
+    public func createStopMarketOrder (symbol: String, side: OrderSide, amount: Double, triggerPrice: Double, params: [String: Any] = [:]) async throws -> [String: Any] {
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[String: Any], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
                     let paramsData = try? JSONSerialization.data(withJSONObject: params)
@@ -4193,7 +5069,7 @@ public class Exchange {
                     do {
                         let jsonObject = try self.decode(data)
                         let cleaned = self.cleanAny(jsonObject)
-                        continuation.resume(returning: cleaned as! Any)
+                        continuation.resume(returning: cleaned as! [String: Any])
                     } catch {
                         continuation.resume(throwing: error)
                     }
@@ -4205,8 +5081,8 @@ public class Exchange {
     }
 
 
-    public func createStopMarketOrderWs (symbol: String, side: String?, amount: Double, triggerPrice: Double, params: [String: Any] = [:]) async throws -> Any {
-        try await withCheckedThrowingContinuation { continuation in
+    public func createStopMarketOrderWs (symbol: String, side: OrderSide, amount: Double, triggerPrice: Double, params: [String: Any] = [:]) async throws -> [String: Any] {
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[String: Any], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
                     let paramsData = try? JSONSerialization.data(withJSONObject: params)
@@ -4214,7 +5090,7 @@ public class Exchange {
                     do {
                         let jsonObject = try self.decode(data)
                         let cleaned = self.cleanAny(jsonObject)
-                        continuation.resume(returning: cleaned as! Any)
+                        continuation.resume(returning: cleaned as! [String: Any])
                     } catch {
                         continuation.resume(throwing: error)
                     }
@@ -4226,8 +5102,8 @@ public class Exchange {
     }
 
 
-    public func fetchLastPrices (symbols: [String]? = nil, params: [String: Any] = [:]) async throws -> [String: [String: Any]] {
-        try await withCheckedThrowingContinuation { continuation in
+    public func fetchLastPrices (symbols: Strings = nil, params: [String: Any] = [:]) async throws -> [String: [String: Any]] {
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[String: [String: Any]], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
 					var paramsCopy: [String: Any] = params
@@ -4250,7 +5126,7 @@ public class Exchange {
 
 
     public func fetchTradingFees (params: [String: Any] = [:]) async throws -> [String: [String: Any]] {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[String: [String: Any]], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
                     let paramsData = try? JSONSerialization.data(withJSONObject: params)
@@ -4271,7 +5147,7 @@ public class Exchange {
 
 
     public func fetchTradingFeesWs (params: [String: Any] = [:]) async throws -> [String: [String: Any]] {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[String: [String: Any]], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
                     let paramsData = try? JSONSerialization.data(withJSONObject: params)
@@ -4292,7 +5168,7 @@ public class Exchange {
 
 
     public func fetchTradingFee (symbol: String, params: [String: Any] = [:]) async throws -> [String: Any] {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[String: Any], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
                     let paramsData = try? JSONSerialization.data(withJSONObject: params)
@@ -4313,7 +5189,7 @@ public class Exchange {
 
 
     public func fetchConvertCurrencies (params: [String: Any] = [:]) async throws -> [String: [String: Any]] {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[String: [String: Any]], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
                     let paramsData = try? JSONSerialization.data(withJSONObject: params)
@@ -4334,7 +5210,7 @@ public class Exchange {
 
 
     public func fetchFundingRate (symbol: String, params: [String: Any] = [:]) async throws -> [String: Any] {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[String: Any], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
                     let paramsData = try? JSONSerialization.data(withJSONObject: params)
@@ -4355,7 +5231,7 @@ public class Exchange {
 
 
     public func fetchFundingInterval (symbol: String, params: [String: Any] = [:]) async throws -> [String: Any] {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[String: Any], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
                     let paramsData = try? JSONSerialization.data(withJSONObject: params)
@@ -4376,7 +5252,7 @@ public class Exchange {
 
 
     public func fetchMarkOHLCV (symbol: String, timeframe: String = "1m", since: Int? = nil, limit: Int? = nil, params: [String: Any] = [:]) async throws -> [[Double]] {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[[Double]], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
 					var paramsCopy: [String: Any] = params
@@ -4400,7 +5276,7 @@ public class Exchange {
 
 
     public func fetchIndexOHLCV (symbol: String, timeframe: String = "1m", since: Int? = nil, limit: Int? = nil, params: [String: Any] = [:]) async throws -> [[Double]] {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[[Double]], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
 					var paramsCopy: [String: Any] = params
@@ -4424,7 +5300,7 @@ public class Exchange {
 
 
     public func fetchPremiumIndexOHLCV (symbol: String, timeframe: String = "1m", since: Int? = nil, limit: Int? = nil, params: [String: Any] = [:]) async throws -> [[Double]] {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[[Double]], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
 					var paramsCopy: [String: Any] = params
@@ -4448,7 +5324,7 @@ public class Exchange {
 
 
     public func fetchTransactions (code: String? = nil, since: Int? = nil, limit: Int? = nil, params: [String: Any] = [:]) async throws -> [[String: Any]] {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[[String: Any]], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
 					var paramsCopy: [String: Any] = params
@@ -4473,7 +5349,7 @@ public class Exchange {
 
 
     public func fetchPositionHistory (symbol: String, since: Int? = nil, limit: Int? = nil, params: [String: Any] = [:]) async throws -> [[String: Any]] {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[[String: Any]], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
 					var paramsCopy: [String: Any] = params
@@ -4496,8 +5372,8 @@ public class Exchange {
     }
 
 
-    public func fetchPositionsHistory (symbols: [String]? = nil, since: Int? = nil, limit: Int? = nil, params: [String: Any] = [:]) async throws -> [[String: Any]] {
-        try await withCheckedThrowingContinuation { continuation in
+    public func fetchPositionsHistory (symbols: Strings = nil, since: Int? = nil, limit: Int? = nil, params: [String: Any] = [:]) async throws -> [[String: Any]] {
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[[String: Any]], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
 					var paramsCopy: [String: Any] = params
@@ -4522,7 +5398,7 @@ public class Exchange {
 
 
     public func fetchTransfer (id: String, code: String? = nil, params: [String: Any] = [:]) async throws -> [String: Any] {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[String: Any], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
 					var paramsCopy: [String: Any] = params
@@ -4545,7 +5421,7 @@ public class Exchange {
 
 
     public func fetchTransfers (code: String? = nil, since: Int? = nil, limit: Int? = nil, params: [String: Any] = [:]) async throws -> [[String: Any]] {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[[String: Any]], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
 					var paramsCopy: [String: Any] = params
